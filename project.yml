@@ -64,6 +64,35 @@ targets:
           ONLY_ACTIVE_ARCH: true
         release:
           ONLY_ACTIVE_ARCH: false
+
+  SpeakSelectionTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: SpeakSelection
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        # Test bundles need a plist to be signed; let Xcode synthesize one
+        # rather than checking in a file nobody will ever read.
+        GENERATE_INFOPLIST_FILE: true
+        # Inherits the app's signing identity; no separate profile needed.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        PROVISIONING_PROFILE_SPECIFIER: ""
+
+schemes:
+  SpeakSelection:
+    build:
+      targets:
+        SpeakSelection: all
+        SpeakSelectionTests: [test]
+    test:
+      targets:
+        - SpeakSelectionTests
     info:
       path: SpeakSelection/Info.plist
       properties:

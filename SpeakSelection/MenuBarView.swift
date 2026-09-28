@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuBarView: View {
     @EnvironmentObject var speech: SpeechController
     @ObservedObject var downloader = ModelDownloader.shared
+    @ObservedObject var permissions = Permissions.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -94,15 +95,47 @@ struct MenuBarView: View {
 
             Divider()
 
-            Text("Select text in any app, then press ⌃⌥S (speak) / ⌃⌥X (stop). Native apps also get right-click → Services → “Speak Selection”. First hotkey use asks for Accessibility access.")
+            // Only surfaced when it is actually a problem — a permanent
+            // nag for a permission the Services flow never needs is noise.
+            if !permissions.isTrusted {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Keyboard shortcut is inactive", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.orange)
+                    Text("⌃⌥S needs Accessibility access. Right-click → Services still works.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Fix This…") { WelcomeWindow.show() }
+                        .controlSize(.small)
+                }
+                Divider()
+            }
+
+            Toggle("Open at login", isOn: $permissions.launchAtLogin)
+                .toggleStyle(.checkbox)
+                .font(.callout)
+
+            Text("Select text in any app, then press ⌃⌥S (speak) / ⌃⌥X (stop). Native apps also get right-click → Services → “Speak Selection”.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Button("Quit") { NSApp.terminate(nil) }
-                .keyboardShortcut("q")
+            HStack {
+                Button("Help") { WelcomeWindow.show() }
+                Spacer()
+                Button("Quit") { NSApp.terminate(nil) }
+                    .keyboardShortcut("q")
+            }
         }
         .padding(14)
         .frame(width: 300)
+        // Catches a grant made in System Settings while the popover is open,
+        // so the warning clears itself instead of looking stuck.
+        .onAppear {
+            permissions.refresh()
+            permissions.beginWatching()
+        }
+        .onDisappear { permissions.endWatching() }
     }
 }

@@ -37,6 +37,17 @@ The app is menu-bar-only (no Dock icon).
 **Quick test without the Services menu:** copy some text, click the menu bar
 icon, and hit *Speak Clipboard (test)*.
 
+**Tests:**
+
+```bash
+xcodebuild test -project SpeakSelection.xcodeproj -scheme SpeakSelection \
+  -destination 'platform=macOS,arch=arm64'
+```
+
+They cover text chunking edge cases and the integrity of the 54-entry
+speaker table — hand-transcribed data where a typo produces the wrong
+voice rather than an error. `release.sh` runs them before building.
+
 **Headless check** that the installed voice bundle really synthesizes:
 
 ```bash
@@ -126,6 +137,19 @@ int8 build of the original English-only model, 11 voices.
 `kokoro-int8-multi-lang-v1_1` is newer but is the **-zh** release — 103
 voices of which only three are English, so it is a regression here despite
 the higher version number.
+
+## First run
+
+A menu-bar-only app that opens no window looks like a failed launch, so the
+first launch of each version shows a welcome window: where the app lives,
+the ⌃⌥S / ⌃⌥X shortcuts, the Accessibility grant, and an "Open at login"
+toggle. Reopen it any time from *Help* in the menu bar popover.
+
+**Accessibility is only needed for the keyboard shortcut** — it reads the
+selection out of the frontmost app. The right-click Services entry works
+without it, because macOS hands the text over directly. The popover shows a
+warning only while the shortcut is actually inactive, and clears it within a
+second of the grant being made in System Settings.
 
 ## Enabling the right-click Service
 

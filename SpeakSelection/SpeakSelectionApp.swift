@@ -43,14 +43,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Warm up the Kokoro sidecar in the background so the first
         // "Speak Selection" doesn't pay the model-load cost.
         Task { await SpeechController.shared.warmUp() }
+
+        // A menu-bar-only app that opens nothing looks like a failed launch.
+        WelcomeWindow.showIfFirstRun()
     }
 
     private func speakCurrentSelection() {
         Task { @MainActor in
-            let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-            guard AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary) else {
+            guard Permissions.shared.isTrusted else {
+                // The system prompt appears only once per app signature, so on
+                // later attempts it does nothing and the user is left with a
+                // hotkey that seems broken. Show the window that explains it.
+                Permissions.shared.requestAccess()
+                if !Permissions.shared.isTrusted { WelcomeWindow.show() }
                 SpeechController.shared.statusMessage =
-                    "Hotkey needs Accessibility access: System Settings → Privacy & Security → Accessibility → enable SpeakSelection."
+                    "The keyboard shortcut needs Accessibility access."
                 return
             }
             let text = await SelectionGrabber.grabSelectedText()?

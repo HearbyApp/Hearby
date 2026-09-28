@@ -28,6 +28,21 @@ rm -rf "$BUILD" && mkdir -p "$BUILD"
 echo "==> Generating Xcode project"
 xcodegen
 
+echo "==> Running unit tests"
+# Logged rather than piped: piping into grep would mask xcodebuild's exit
+# status, and a trailing `|| true` resets PIPESTATUS, so a failing suite
+# would sail through unnoticed.
+TESTLOG="$BUILD/tests.log"
+if ! xcodebuild test -project SpeakSelection.xcodeproj \
+  -scheme SpeakSelection -configuration Debug \
+  -destination 'platform=macOS,arch=arm64' \
+  -derivedDataPath "$BUILD/dd-test" >"$TESTLOG" 2>&1; then
+  grep -E "error:|XCTAssert.* failed" "$TESTLOG" | head -20 >&2
+  echo "FATAL: tests failed — full log at $TESTLOG" >&2
+  exit 1
+fi
+grep -E "Executed [0-9]+ tests" "$TESTLOG" | tail -1
+
 echo "==> Building Release (universal)"
 # -destination 'generic/platform=macOS' is load-bearing: without it xcodebuild
 # builds only the host architecture and ships an arm64-only app that Intel
