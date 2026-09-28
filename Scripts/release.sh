@@ -78,7 +78,10 @@ else
 fi
 
 echo "==> Signing with Developer ID (hardened runtime)"
-codesign --force --deep --options runtime --timestamp \
+# No --deep: Apple discourages it, and this bundle has no nested code to
+# reach anyway — one executable, no embedded frameworks or helpers. If that
+# ever changes, sign the inner code first and the bundle last.
+codesign --force --options runtime --timestamp \
   --sign "$IDENTITY" "$APP"
 codesign --verify --strict --verbose=2 "$APP"
 
@@ -94,6 +97,12 @@ xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
 
 echo "==> Stapling ticket"
 xcrun stapler staple "$DMG"
+
+echo "==> Verifying the shipped artifact"
+xcrun stapler validate "$DMG"
+# Gatekeeper's actual verdict on a fresh Mac. Only meaningful now that the
+# ticket is stapled — running it before notarization always fails.
+spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG"
 
 echo ""
 echo "✓ Ready to ship: $DMG"
