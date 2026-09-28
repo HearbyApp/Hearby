@@ -96,13 +96,40 @@ the options. Resolve it before the first paid release.
 ./Scripts/release.sh "Developer ID Application: Your Name (TEAMID)"
 ```
 
-The script builds Release, signs with your Developer ID (hardened runtime),
-packages a drag-to-Applications DMG, submits it to Apple for notarization,
-and staples the ticket. Prerequisites (Developer Program membership,
-certificate, `notarytool store-credentials`) are documented at the top of
-the script. Without notarization, users face Gatekeeper's
+The script runs the tests, builds a universal Release, runs the self-test,
+signs inside-out with your Developer ID (hardened runtime), packages a
+drag-to-Applications DMG, notarizes and staples it, verifies the result with
+`spctl`, and generates the Sparkle appcast. Prerequisites (Developer Program
+membership, certificate, `notarytool store-credentials`) are documented at
+the top of the script. Without notarization, users face Gatekeeper's
 "unidentified developer" friction — that's the difference between
 one-click and not.
+
+**Signing is inside-out, never `--deep`.** Sparkle ships four nested bundles
+(`Installer.xpc`, `Downloader.xpc`, `Autoupdate`, `Updater.app`) plus the
+framework itself. Each is signed before the bundle enclosing it, or the
+outer signature is invalidated as soon as anything inside changes.
+
+## Auto-update (Sparkle)
+
+**Before the first release**, replace `YOUR-GITHUB-USERNAME` in
+`project.yml`'s `SUFeedURL`. The app disables auto-update while the
+placeholder is present, and `release.sh` refuses to build.
+
+The EdDSA key pair is already generated. The **private key is in the release
+machine's login Keychain** (item: "Private key for signing Sparkle updates")
+and is not in this repository. Back it up somewhere safe — losing it means
+no shipped copy of the app can ever be updated again, and regenerating it
+strands every existing install. The public half is `SUPublicEDKey` in
+`project.yml`.
+
+`release.sh` needs Sparkle's command-line tools at `~/.sparkle/bin` (or set
+`SPARKLE_BIN`). Get them from the `Sparkle-*.tar.xz` asset on
+[Sparkle's releases page](https://github.com/sparkle-project/Sparkle/releases).
+
+Each GitHub release must attach **both** the DMG and `appcast.xml`. The feed
+URL points at `/releases/latest/download/appcast.xml`, so publishing a
+release without the appcast breaks updates for everyone.
 
 **Mac App Store later:** the code avoids everything sandbox-hostile — the
 model download is plain URLSession and extraction targets the app's own

@@ -4,6 +4,7 @@ struct MenuBarView: View {
     @EnvironmentObject var speech: SpeechController
     @ObservedObject var downloader = ModelDownloader.shared
     @ObservedObject var permissions = Permissions.shared
+    @ObservedObject var updater = Updater.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -121,8 +122,21 @@ struct MenuBarView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if updater.isConfigured {
+                Button {
+                    updater.checkForUpdates()
+                } label: {
+                    Label("Check for Updates…", systemImage: "arrow.down.circle")
+                }
+                .disabled(!updater.canCheck)
+            }
+
             HStack {
                 Button("Help") { WelcomeWindow.show() }
+                Spacer()
+                Text("v\(Updater.displayVersion)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
                 Spacer()
                 Button("Quit") { NSApp.terminate(nil) }
                     .keyboardShortcut("q")

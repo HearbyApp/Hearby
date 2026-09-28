@@ -44,6 +44,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // "Speak Selection" doesn't pay the model-load cost.
         Task { await SpeechController.shared.warmUp() }
 
+        // Starts Sparkle's scheduled background checks. Referencing the
+        // singleton is what constructs it; it no-ops until a real feed URL
+        // is configured.
+        _ = Updater.shared
+
         // A menu-bar-only app that opens nothing looks like a failed launch.
         WelcomeWindow.showIfFirstRun()
     }
