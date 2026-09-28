@@ -28,8 +28,7 @@ enum WelcomeWindow {
 
     static func show() {
         if let controller {
-            controller.window?.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            present(controller.window)
             return
         }
 
@@ -45,7 +44,19 @@ enum WelcomeWindow {
 
         let wc = NSWindowController(window: window)
         controller = wc
-        wc.showWindow(nil)
+        present(window)
+    }
+
+    /// Brings the window to wherever the user actually is.
+    ///
+    /// `makeKeyAndOrderFront` alone puts it on the Space the app last used,
+    /// which for a menu-bar app is usually not the Space in front of the
+    /// user — someone reading in a fullscreen browser would trigger this and
+    /// see nothing happen. `.moveToActiveSpace` follows them instead.
+    private static func present(_ window: NSWindow?) {
+        guard let window else { return }
+        window.collectionBehavior.insert(.moveToActiveSpace)
+        window.makeKeyAndOrderFront(nil)
         // LSUIElement apps are not in the Dock and do not come forward on
         // their own; without this the window opens behind everything.
         NSApp.activate(ignoringOtherApps: true)

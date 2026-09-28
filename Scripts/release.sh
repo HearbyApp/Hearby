@@ -14,12 +14,36 @@
 #      (generate an app-specific password at appleid.apple.com)
 #
 # Then:  ./Scripts/release.sh "Developer ID Application: Your Name (TEAMID)"
+#
+# To rehearse the install flow before you have that certificate:
+#
+#   ./Scripts/release.sh --local
+#
+# builds the same DMG signed with your Apple Development identity, skipping
+# notarization and the appcast. It installs and runs correctly on THIS Mac.
+# It is not distributable — on anyone else's machine Gatekeeper blocks it,
+# which is exactly the friction notarization removes.
 set -euo pipefail
 
-IDENTITY="${1:?Usage: release.sh \"Developer ID Application: Name (TEAMID)\"}"
+cd "$(dirname "$0")/.."
+
+LOCAL=0
+if [ "${1:-}" = "--local" ]; then
+  LOCAL=1
+  # First codesigning identity in the keychain — whatever this Mac has.
+  IDENTITY=$(security find-identity -v -p codesigning \
+    | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)
+  if [ -z "$IDENTITY" ]; then
+    echo "FATAL: no codesigning identity found in your keychain." >&2
+    exit 1
+  fi
+  echo "==> LOCAL TEST BUILD — not notarized, not distributable"
+  echo "    signing as: $IDENTITY"
+else
+  IDENTITY="${1:?Usage: release.sh \"Developer ID Application: Name (TEAMID)\" | --local}"
+fi
 NOTARY_PROFILE="${NOTARY_PROFILE:-notary-profile}"
 
-cd "$(dirname "$0")/.."
 BUILD=build/release
 APP="$BUILD/SpeakSelection.app"
 DMG="$BUILD/SpeakSelection.dmg"
@@ -30,17 +54,23 @@ xcodegen
 
 echo "==> Checking the Sparkle feed is configured"
 # Shipping the placeholder means every copy has auto-update silently off,
-# with no way to push a fix to the users who already installed it.
+# with no way to push a fix to the users who already installed it. A local
+# test build is never distributed, so it is allowed to carry the placeholder.
 if grep -q "YOUR-GITHUB-USERNAME" project.yml; then
-  echo "FATAL: SUFeedURL in project.yml is still the placeholder." >&2
-  echo "       Set it to your GitHub owner/repo before releasing." >&2
-  exit 1
+  if [ "$LOCAL" -eq 1 ]; then
+    echo "    placeholder feed — auto-update will be disabled in this build"
+  else
+    echo "FATAL: SUFeedURL in project.yml is still the placeholder." >&2
+    echo "       Set it to your GitHub owner/repo before releasing." >&2
+    exit 1
+  fi
 fi
 
 # Single source of truth for both: project.yml. Deriving them keeps the git
 # tag, the DMG and the appcast's download URLs from drifting apart.
 VERSION=$(awk -F'"' '/MARKETING_VERSION:/ {print $2; exit}' project.yml)
 GITHUB_REPO=$(awk -F'/' '/SUFeedURL:/ {print $4 "/" $5; exit}' project.yml)
+if [ "$LOCAL" -eq 1 ]; then GITHUB_REPO="${GITHUB_REPO:-local/local}"; fi
 if [ -z "$VERSION" ] || [ -z "$GITHUB_REPO" ]; then
   echo "FATAL: could not read MARKETING_VERSION or SUFeedURL from project.yml" >&2
   exit 1
@@ -123,6 +153,20 @@ mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "SpeakSelection" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+
+if [ "$LOCAL" -eq 1 ]; then
+  echo ""
+  echo "✓ Local test build: $DMG"
+  echo ""
+  echo "  Install it the way a user would:"
+  echo "    open \"$DMG\"           # mounts it in Finder"
+  echo "    drag SpeakSelection onto the Applications shortcut"
+  echo "    open /Applications/SpeakSelection.app"
+  echo ""
+  echo "  Not notarized: this runs on THIS Mac only. On any other machine"
+  echo "  Gatekeeper will refuse it until you have a Developer ID cert."
+  exit 0
+fi
 
 echo "==> Notarizing (this waits for Apple; usually a few minutes)"
 xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
