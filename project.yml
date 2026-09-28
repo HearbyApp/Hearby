@@ -1,0 +1,82 @@
+# XcodeGen project spec — run `xcodegen` in this directory to produce SpeakSelection.xcodeproj
+# Install XcodeGen with: brew install xcodegen
+name: SpeakSelection
+options:
+  bundleIdPrefix: com.justinbrundage
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+# Vendored local package (sherpa-onnx 1.13.2). The upstream remote package
+# (willwade/sherpa-onnx-spm) is broken for Xcode builds at every published
+# tag — see Vendor/SherpaOnnx/README.md for details and regeneration steps.
+packages:
+  SherpaOnnx:
+    path: Vendor/SherpaOnnx
+
+targets:
+  SpeakSelection:
+    type: application
+    platform: macOS
+    sources:
+      - path: SpeakSelection
+    dependencies:
+      - package: SherpaOnnx
+        product: SherpaOnnx
+    settings:
+      base:
+        PRODUCT_NAME: SpeakSelection
+        MARKETING_VERSION: "0.2.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        # Signed with a stable identity, NOT ad-hoc. TCC pins an ad-hoc
+        # grant to the binary's cdhash, so Accessibility permission silently
+        # broke on every rebuild. An identity-based signature keeps the grant
+        # valid across rebuilds. For distribution, Scripts/release.sh
+        # re-signs with your Developer ID.
+        # Manual, not Automatic: automatic provisioning on macOS searches for
+        # a "Mac Development" cert and won't match the universal "Apple
+        # Development" one. Naming the identity outright skips that lookup.
+        # No provisioning profile is needed for a locally-run, non-sandboxed app.
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        # Team ID is the cert's OU,
+        # NOT the identifier in the cert's common name.
+        DEVELOPMENT_TEAM: ""
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        # Notarization requires the hardened runtime — enabling it now keeps
+        # dev and release builds identical.
+        ENABLE_HARDENED_RUNTIME: true
+        # Sandbox is OFF for now (simplest dev experience). The code is
+        # sandbox-compatible (network download + /usr/bin/tar into the app
+        # container work sandboxed) — flip this on + add entitlements for a
+        # future Mac App Store build.
+        ENABLE_APP_SANDBOX: false
+    info:
+      path: SpeakSelection/Info.plist
+      properties:
+        # Menu-bar-only app: no Dock icon, no main window.
+        LSUIElement: true
+        NSHumanReadableCopyright: ""
+        # ── The right-click Services entry ─────────────────────────────────
+        # This is what makes "Speak Selection" appear in the right-click menu
+        # (under Services) of nearly every macOS app when text is selected.
+        NSServices:
+          - NSMenuItem:
+              default: "Speak Selection"
+            NSMessage: speakSelectedText        # -> speakSelectedText:userData:error:
+            NSPortName: SpeakSelection          # must match PRODUCT_NAME
+            # No NSKeyEquivalent here: service shortcuts are unreliable (pbs
+            # caching, often need a logout) and never reach Electron apps.
+            # Global hotkeys ⌃⌥S / ⌃⌥X are registered in-app instead
+            # (HotKeys.swift) and work everywhere.
+            NSSendTypes:
+              - NSStringPboardType
+            NSRequiredContext: {}
+          - NSMenuItem:
+              default: "Stop Speaking"
+            NSMessage: stopSpeaking
+            NSPortName: SpeakSelection
+            NSSendTypes:
+              - NSStringPboardType
+            NSRequiredContext: {}
