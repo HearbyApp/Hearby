@@ -6,6 +6,14 @@ struct SpeakSelectionApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var speech = SpeechController.shared
 
+    init() {
+        // `SpeakSelection.app/Contents/MacOS/SpeakSelection --self-test`
+        // loads the installed voice bundle, synthesizes one phrase and exits
+        // non-zero if anything is wrong. Run by Scripts/release.sh so a
+        // model/config mismatch fails the build instead of shipping mute.
+        if CommandLine.arguments.contains("--self-test") { SelfTest.runAndExit() }
+    }
+
     var body: some Scene {
         MenuBarExtra("SpeakSelection", systemImage: speech.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2") {
             MenuBarView()

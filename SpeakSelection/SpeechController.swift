@@ -13,7 +13,7 @@ final class SpeechController: NSObject, ObservableObject {
     @Published var kokoroReady = false
     @Published var voices: [String] = []
 
-    @AppStorage("voice") var voice = "af_sarah"
+    @AppStorage("voice") var voice = NativeKokoroEngine.defaultVoice
     @AppStorage("speed") var speed = 1.0
     @AppStorage("useKokoro") var useKokoro = true
 
@@ -46,6 +46,10 @@ final class SpeechController: NSObject, ObservableObject {
                 try kokoro.load()
             }.value
             voices = await kokoro.availableVoices()
+            // A voice saved by an older bundle may no longer exist. Left
+            // alone, the Picker would show an empty selection and synthesis
+            // would quietly use the fallback speaker.
+            if !voices.contains(voice) { voice = NativeKokoroEngine.defaultVoice }
             kokoroReady = true
             statusMessage = "Kokoro ready."
         } catch {

@@ -30,6 +30,12 @@ struct MenuBarView: View {
                         .font(.caption)
                     ProgressView(value: progress)
                 }
+            case .verifying:
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Verifying download…").font(.caption)
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                }
             case .extracting:
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Unpacking voices…").font(.caption)
@@ -51,9 +57,15 @@ struct MenuBarView: View {
             Divider()
 
             if speech.kokoroReady && !speech.voices.isEmpty {
+                // 54 voices across 8 languages: a flat list is unusable, so
+                // section it and keep English at the top where most users need it.
                 Picker("Voice", selection: $speech.voice) {
-                    ForEach(speech.voices, id: \.self) { v in
-                        Text(v).tag(v)
+                    ForEach(NativeKokoroEngine.voicesByLanguage, id: \.language) { group in
+                        Section(group.language) {
+                            ForEach(group.voices, id: \.name) { v in
+                                Text(v.displayName).tag(v.name)
+                            }
+                        }
                     }
                 }
             }

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Downloads and installs the Kokoro model bundle on first launch —
@@ -13,6 +14,7 @@ final class ModelDownloader: NSObject, ObservableObject {
     enum State: Equatable {
         case notInstalled
         case downloading(progress: Double)   // 0...1
+        case verifying
         case extracting
         case installed
         case failed(String)
@@ -20,13 +22,30 @@ final class ModelDownloader: NSObject, ObservableObject {
 
     @Published var state: State = .notInstalled
 
-    /// English-only Kokoro bundle, 11 voices.
-    /// Alternative (smaller, more voices incl. af_heart, English+Chinese):
-    ///   kokoro-int8-multi-lang-v1_1.tar.bz2 — swap bundleName + voice map in
-    ///   NativeKokoroEngine if you change this.
-    nonisolated static let bundleName = "kokoro-en-v0_19"
+    /// Kokoro v1.0, int8-quantized: 54 voices (28 of them English, including
+    /// af_heart) at 132 MB.
+    ///
+    /// Chosen over the two obvious alternatives:
+    ///   - kokoro-en-v0_19 (the original here) is fp32: 320 MB for 11 English
+    ///     voices, none as good as af_heart.
+    ///   - kokoro-int8-multi-lang-v1_1 is newer but is the *-zh* release —
+    ///     103 voices of which only 3 (af_maple, af_sol, bf_vale) are English.
+    ///     A regression for an English-first product.
+    /// Changing this bundle means regenerating `voiceTable` in
+    /// NativeKokoroEngine from the model's own `id2speaker` metadata.
+    nonisolated static let bundleName = "kokoro-int8-multi-lang-v1_0"
     static let downloadURL = URL(string:
-        "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-en-v0_19.tar.bz2")!
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2")!
+
+    /// Verified against the published release asset. A corrupted or
+    /// man-in-the-middled archive gets extracted by /usr/bin/tar otherwise.
+    nonisolated static let expectedSHA256 =
+        "4c3052abaa60943a341f193888cf6abd68787dae6ab8ae5c925a706caa247e4e"
+    nonisolated static let expectedBytes: Int64 = 132_303_094
+
+    /// Bundles shipped by earlier versions, deleted once the current one
+    /// installs — the v0_19 bundle alone is 353 MB of dead weight.
+    nonisolated static let supersededBundles = ["kokoro-en-v0_19"]
 
     nonisolated static let appSupportDir = FileManager.default
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -34,8 +53,11 @@ final class ModelDownloader: NSObject, ObservableObject {
 
     nonisolated static var modelDir: URL { appSupportDir.appendingPathComponent(bundleName) }
 
+    /// The int8 bundles name the weights model.int8.onnx, not model.onnx.
+    nonisolated static var modelFile: URL { modelDir.appendingPathComponent("model.int8.onnx") }
+
     var isInstalled: Bool {
-        FileManager.default.fileExists(atPath: Self.modelDir.appendingPathComponent("model.onnx").path)
+        FileManager.default.fileExists(atPath: Self.modelFile.path)
     }
 
     private var downloadTask: URLSessionDownloadTask?
@@ -61,10 +83,14 @@ final class ModelDownloader: NSObject, ObservableObject {
     }
 
     private func finishInstall(from archiveURL: URL) {
-        state = .extracting
+        state = .verifying
         Task.detached(priority: .userInitiated) {
             do {
                 let fm = FileManager.default
+
+                try Self.verifyChecksum(of: archiveURL)
+                await MainActor.run { self.state = .extracting }
+
                 try fm.createDirectory(at: Self.appSupportDir, withIntermediateDirectories: true)
 
                 // Extract with the system tar (handles .tar.bz2 natively).
@@ -83,14 +109,46 @@ final class ModelDownloader: NSObject, ObservableObject {
                 await MainActor.run {
                     if self.isInstalled {
                         self.state = .installed
+                        Self.removeSupersededBundles()
                         Task { await SpeechController.shared.warmUp() }
                     } else {
-                        self.state = .failed("Archive extracted but model.onnx not found.")
+                        self.state = .failed(
+                            "Archive extracted but \(Self.modelFile.lastPathComponent) was not found.")
                     }
                 }
             } catch {
+                // A bad archive must not linger — the next retry would just
+                // re-verify the same corrupt bytes.
+                try? FileManager.default.removeItem(at: archiveURL)
                 await MainActor.run { self.state = .failed(error.localizedDescription) }
             }
+        }
+    }
+
+    /// Streams the archive through SHA-256 so a 132 MB file never lands in
+    /// memory all at once.
+    nonisolated private static func verifyChecksum(of url: URL) throws {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+
+        var hasher = SHA256()
+        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty {
+            hasher.update(data: chunk)
+        }
+        let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+
+        guard digest == expectedSHA256 else {
+            throw NSError(domain: "SpeakSelection", code: 2, userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Downloaded voice pack failed its integrity check. Tap Retry to download it again.",
+            ])
+        }
+    }
+
+    /// Reclaims disk from bundles shipped by earlier app versions.
+    nonisolated private static func removeSupersededBundles() {
+        for name in supersededBundles {
+            try? FileManager.default.removeItem(at: appSupportDir.appendingPathComponent(name))
         }
     }
 

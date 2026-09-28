@@ -26,17 +26,58 @@ xcodegen                        # generates SpeakSelection.xcodeproj
 open SpeakSelection.xcodeproj   # then Cmd-R
 ```
 
-Xcode resolves the `sherpa-onnx-spm` Swift package automatically on first
-open. The app is menu-bar-only (no Dock icon).
+`SpeakSelection.xcodeproj` is generated and git-ignored — edit `project.yml`
+and re-run `xcodegen`, never the project file. The same goes for
+`SpeakSelection/Info.plist`: xcodegen rewrites it from the `info.properties`
+block in `project.yml` on every run.
+
+sherpa-onnx is vendored at `Vendor/SherpaOnnx/` (see its README for why).
+The app is menu-bar-only (no Dock icon).
 
 **Quick test without the Services menu:** copy some text, click the menu bar
 icon, and hit *Speak Clipboard (test)*.
+
+**Headless check** that the installed voice bundle really synthesizes:
+
+```bash
+SpeakSelection.app/Contents/MacOS/SpeakSelection --self-test
+```
+
+It verifies every file the engine config references, loads the model,
+checks the default voice against the speaker table, and synthesizes a
+phrase — exiting non-zero on any failure. `release.sh` runs it before
+signing.
+
+**App icon:** drawn in code, not stored as a design asset. Regenerate with
+`./Scripts/make-icon.swift` after editing it.
 
 > **API note:** `NativeKokoroEngine.swift` is written against the SherpaOnnx
 > Swift wrapper API (`SherpaOnnxOfflineTtsWrapper`,
 > `sherpaOnnxOfflineTtsKokoroModelConfig`, …). If the package version you
 > resolve exposes slightly different names, that one file is the only place
 > to adjust — the rest of the app talks to the `SpeechEngine` protocol.
+
+## Repository notes
+
+`Vendor/SherpaOnnx/Frameworks/sherpa-onnx.xcframework/.../libsherpa-onnx.a`
+is a 167 MB binary committed directly. That is fine locally but exceeds
+GitHub's 100 MB per-file limit, so **install Git LFS and migrate it before
+adding a remote**:
+
+```bash
+brew install git-lfs && git lfs install
+git lfs track "*.a"
+git add .gitattributes
+git lfs migrate import --include="*.a" --everything
+```
+
+## Licensing — unresolved
+
+espeak-ng (**GPLv3**) is statically linked into the vendored sherpa-onnx
+library and is reached at runtime for out-of-vocabulary words. This
+constrains how the app may be licensed and sold, and is why there is no
+`LICENSE` file yet. See `THIRD-PARTY-NOTICES.md` for the full picture and
+the options. Resolve it before the first paid release.
 
 ## Shipping it (signed + notarized DMG)
 
@@ -60,16 +101,31 @@ from `/usr/bin/tar` to an in-process decompressor if review complains.
 
 ## First-run model download
 
-- Bundle: `kokoro-en-v0_19` (English, 11 voices) from the sherpa-onnx
-  release archives, extracted to
-  `~/Library/Application Support/SpeakSelection/`.
-- It's a large one-time download; the menu shows live progress and a Retry
-  button on failure. Delete the Application Support folder to force a
-  re-download.
-- Want a smaller download or the newer v1.x voices (e.g. `af_heart`)?
-  Swap `bundleName`/`downloadURL` in `ModelDownloader.swift` to
-  `kokoro-int8-multi-lang-v1_1` and update the voice table in
-  `NativeKokoroEngine.swift` (v1.1 has 103 speakers).
+- Bundle: `kokoro-int8-multi-lang-v1_0` — 132 MB, 54 voices, of which 28 are
+  English (20 US including `af_heart`, the default; 8 UK). The rest cover
+  Spanish, French, Italian, Portuguese, Hindi, Japanese and Chinese.
+  Extracted to `~/Library/Application Support/SpeakSelection/`.
+- The download is SHA-256 verified before extraction; a corrupt archive is
+  deleted rather than unpacked. The menu shows live progress, a verifying
+  step, and a Retry button on failure.
+- Bundles from earlier app versions are deleted once the current one
+  installs. Delete the Application Support folder to force a re-download.
+
+**Choosing a different bundle.** `ModelDownloader.bundleName` +
+`downloadURL` + `expectedSHA256` select it, and
+`NativeKokoroEngine.voiceTable` must be regenerated to match — a wrong
+speaker id does not error, it just speaks as the wrong person. The model
+carries its own authoritative mapping:
+
+```bash
+strings model.int8.onnx | grep -o 'id2speaker.*' | head -1
+```
+
+Two bundles worth knowing about: `kokoro-int8-en-v0_19` (103 MB) is the
+int8 build of the original English-only model, 11 voices.
+`kokoro-int8-multi-lang-v1_1` is newer but is the **-zh** release — 103
+voices of which only three are English, so it is a regression here despite
+the higher version number.
 
 ## Enabling the right-click Service
 

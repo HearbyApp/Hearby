@@ -28,13 +28,39 @@ rm -rf "$BUILD" && mkdir -p "$BUILD"
 echo "==> Generating Xcode project"
 xcodegen
 
-echo "==> Building Release"
+echo "==> Building Release (universal)"
+# -destination 'generic/platform=macOS' is load-bearing: without it xcodebuild
+# builds only the host architecture and ships an arm64-only app that Intel
+# Macs cannot run, regardless of ARCHS/ONLY_ACTIVE_ARCH.
 xcodebuild -project SpeakSelection.xcodeproj \
   -scheme SpeakSelection -configuration Release \
+  -destination 'generic/platform=macOS' \
   -derivedDataPath "$BUILD/dd" \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO \
   build
 cp -R "$BUILD/dd/Build/Products/Release/SpeakSelection.app" "$APP"
+
+echo "==> Verifying universal binary"
+archs=$(lipo -archs "$APP/Contents/MacOS/SpeakSelection")
+for want in arm64 x86_64; do
+  case " $archs " in
+    *" $want "*) ;;
+    *) echo "FATAL: binary is missing the $want slice (got: $archs)" >&2; exit 1 ;;
+  esac
+done
+echo "    $archs"
+
+echo "==> Self-test (loads the voice bundle and synthesizes)"
+# Catches a model/config mismatch — wrong filename, missing lexicon, stale
+# speaker table — before it reaches a customer as an app that says nothing.
+# Needs the voice bundle installed on this machine; launch the app once first.
+MODEL_DIR="$HOME/Library/Application Support/SpeakSelection/kokoro-int8-multi-lang-v1_0"
+if [ -d "$MODEL_DIR" ]; then
+  "$APP/Contents/MacOS/SpeakSelection" --self-test
+else
+  echo "    SKIPPED: voice bundle not installed at $MODEL_DIR"
+  echo "    Launch SpeakSelection once to download it, then re-run for a verified build."
+fi
 
 echo "==> Signing with Developer ID (hardened runtime)"
 codesign --force --deep --options runtime --timestamp \

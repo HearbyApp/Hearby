@@ -20,15 +20,20 @@ targets:
     platform: macOS
     sources:
       - path: SpeakSelection
+    # Regenerate with ./Scripts/make-icon.swift — the icon is drawn in code,
+    # not kept as a binary design asset.
     dependencies:
       - package: SherpaOnnx
         product: SherpaOnnx
     settings:
       base:
         PRODUCT_NAME: SpeakSelection
-        MARKETING_VERSION: "0.2.0"
-        CURRENT_PROJECT_VERSION: "1"
+        MARKETING_VERSION: "0.3.0"
+        CURRENT_PROJECT_VERSION: "3"
         SWIFT_VERSION: "5.9"
+        # Universal: the vendored xcframework carries a macos-arm64_x86_64
+        # slice, so Intel support costs nothing but build time.
+        ARCHS: "$(ARCHS_STANDARD)"
         # Signed with a stable identity, NOT ad-hoc. TCC pins an ad-hoc
         # grant to the binary's cdhash, so Accessibility permission silently
         # broke on every rebuild. An identity-based signature keeps the grant
@@ -52,12 +57,31 @@ targets:
         # container work sandboxed) — flip this on + add entitlements for a
         # future Mac App Store build.
         ENABLE_APP_SANDBOX: false
+      configs:
+        # Debug stays single-arch so incremental builds don't pay for a
+        # second slice; Release ships both.
+        debug:
+          ONLY_ACTIVE_ARCH: true
+        release:
+          ONLY_ACTIVE_ARCH: false
     info:
       path: SpeakSelection/Info.plist
       properties:
         # Menu-bar-only app: no Dock icon, no main window.
         LSUIElement: true
-        NSHumanReadableCopyright: ""
+        NSHumanReadableCopyright: "Copyright © 2026 Justin Brundage. All rights reserved."
+        # xcodegen rewrites Info.plist from this block on every run, so the
+        # version keys have to live here — editing the plist by hand is lost
+        # on the next `xcodegen`. These indirect to the build settings above
+        # so MARKETING_VERSION stays the single source of truth.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # An .icns in Resources/, not an asset catalog — one generated file
+        # instead of a directory tree of PNGs.
+        CFBundleIconFile: AppIcon
+        # Shown in the Accessibility permission prompt. Without it macOS
+        # shows only the bundle name with no explanation of why.
+        NSAppleEventsUsageDescription: "SpeakSelection reads the text you have selected so it can speak it aloud."
         # ── The right-click Services entry ─────────────────────────────────
         # This is what makes "Speak Selection" appear in the right-click menu
         # (under Services) of nearly every macOS app when text is selected.
