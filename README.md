@@ -1,4 +1,4 @@
-# SpeakSelection
+# Hearby
 
 A macOS menu bar app that reads any selected text aloud with high-quality
 on-device voices. Highlight text in any app, right-click → **Services →
@@ -8,7 +8,7 @@ No Python, no sidecar, nothing leaves the Mac.
 
 ## What end users experience (one-click install)
 
-1. Download `SpeakSelection.dmg`, drag the app to Applications, open it.
+1. Download `Hearby.dmg`, drag the app to Applications, open it.
 2. A speaker icon appears in the menu bar. On first launch the app
    downloads its voice pack automatically (progress shown in the menu;
    Apple's system voices fill in until it finishes).
@@ -22,13 +22,13 @@ Requirements: macOS 13+ (Apple Silicon recommended), Xcode 15+,
 `brew install xcodegen`.
 
 ```bash
-xcodegen                        # generates SpeakSelection.xcodeproj
-open SpeakSelection.xcodeproj   # then Cmd-R
+xcodegen                        # generates Hearby.xcodeproj
+open Hearby.xcodeproj   # then Cmd-R
 ```
 
-`SpeakSelection.xcodeproj` is generated and git-ignored — edit `project.yml`
+`Hearby.xcodeproj` is generated and git-ignored — edit `project.yml`
 and re-run `xcodegen`, never the project file. The same goes for
-`SpeakSelection/Info.plist`: xcodegen rewrites it from the `info.properties`
+`Hearby/Info.plist`: xcodegen rewrites it from the `info.properties`
 block in `project.yml` on every run.
 
 sherpa-onnx is vendored at `Vendor/SherpaOnnx/` (see its README for why).
@@ -40,7 +40,7 @@ icon, and hit *Speak Clipboard (test)*.
 **Tests:**
 
 ```bash
-xcodebuild test -project SpeakSelection.xcodeproj -scheme SpeakSelection \
+xcodebuild test -project Hearby.xcodeproj -scheme Hearby \
   -destination 'platform=macOS,arch=arm64'
 ```
 
@@ -51,7 +51,7 @@ voice rather than an error. `release.sh` runs them before building.
 **Headless check** that the installed voice bundle really synthesizes:
 
 ```bash
-SpeakSelection.app/Contents/MacOS/SpeakSelection --self-test
+Hearby.app/Contents/MacOS/Hearby --self-test
 ```
 
 It verifies every file the engine config references, loads the model,
@@ -71,24 +71,39 @@ signing.
 ## Repository notes
 
 `Vendor/SherpaOnnx/Frameworks/sherpa-onnx.xcframework/.../libsherpa-onnx.a`
-is a 167 MB binary committed directly. That is fine locally but exceeds
-GitHub's 100 MB per-file limit, so **install Git LFS and migrate it before
-adding a remote**:
+is a 167 MB binary, over GitHub's 100 MB per-file limit, so it is stored with
+Git LFS (`.gitattributes` tracks `*.a`). Install it before cloning or the
+build links against a pointer file:
 
 ```bash
 brew install git-lfs && git lfs install
-git lfs track "*.a"
-git add .gitattributes
-git lfs migrate import --include="*.a" --everything
 ```
 
-## Licensing — unresolved
+## License
 
-espeak-ng (**GPLv3**) is statically linked into the vendored sherpa-onnx
-library and is reached at runtime for out-of-vocabulary words. This
-constrains how the app may be licensed and sold, and is why there is no
-`LICENSE` file yet. See `THIRD-PARTY-NOTICES.md` for the full picture and
-the options. Resolve it before the first paid release.
+Hearby is open source under the **GNU General Public License,
+version 3 or later** (`LICENSE`). Copyright © 2026 Justin Brundage.
+
+That choice follows from espeak-ng (GPLv3), which is statically linked into
+the vendored sherpa-onnx library and reached at runtime for
+out-of-vocabulary words. Selling GPL software is permitted; what buyers pay
+for is the signed, notarized, auto-updating build. See
+`THIRD-PARTY-NOTICES.md` for every component.
+
+What the license obliges on each release:
+
+- **The source for that exact build must be public.** Tag the release in the
+  public repository; the tag is the source offer.
+- **That includes the vendored library.** `libsherpa-onnx.a` is a prebuilt
+  binary, so the matching sherpa-onnx, ONNX Runtime and espeak-ng sources
+  must be obtainable too. See `Vendor/SherpaOnnx/README.md`.
+- **The license travels with the app.** `LICENSE` and
+  `THIRD-PARTY-NOTICES.md` are bundled, and the menu links to them.
+- **No Mac App Store.** Its terms conflict with the GPL.
+
+Outside contributions would be GPL-licensed by their authors, which removes
+the option of relicensing later. Do not merge any without a contributor
+agreement.
 
 ## Shipping it (signed + notarized DMG)
 
@@ -112,9 +127,9 @@ outer signature is invalidated as soon as anything inside changes.
 
 ## Auto-update (Sparkle)
 
-**Before the first release**, replace `YOUR-GITHUB-USERNAME` in
-`project.yml`'s `SUFeedURL`. The app disables auto-update while the
-placeholder is present, and `release.sh` refuses to build.
+Updates are served from <https://github.com/HearbyApp/Hearby> (`SUFeedURL`
+in `project.yml`). That address is baked into every shipped copy, so the
+repository must not be moved or renamed once a release is out.
 
 The EdDSA key pair is already generated. The **private key is in the release
 machine's login Keychain** (item: "Private key for signing Sparkle updates")
@@ -139,15 +154,15 @@ from `/usr/bin/tar` to an in-process decompressor if review complains.
 
 ## First-run model download
 
-- Bundle: `kokoro-int8-multi-lang-v1_0` — 132 MB, 54 voices, of which 28 are
+- Bundle: `kokoro-multi-lang-v1_0` (fp32) — 350 MB, 54 voices, of which 28 are
   English (20 US including `af_heart`, the default; 8 UK). The rest cover
   Spanish, French, Italian, Portuguese, Hindi, Japanese and Chinese.
-  Extracted to `~/Library/Application Support/SpeakSelection/`.
+  Extracted to `~/Library/Application Support/Hearby/`.
 - The download is SHA-256 verified before extraction; a corrupt archive is
   deleted rather than unpacked. The menu shows live progress, a verifying
   step, and a Retry button on failure.
-- Bundles from earlier app versions are deleted once the current one
-  installs. Delete the Application Support folder to force a re-download.
+- Bundles from earlier app versions are deleted at launch once the current
+  one is installed. Delete the Application Support folder to force a re-download.
 
 **Choosing a different bundle.** `ModelDownloader.bundleName` +
 `downloadURL` + `expectedSHA256` select it, and
@@ -156,10 +171,17 @@ speaker id does not error, it just speaks as the wrong person. The model
 carries its own authoritative mapping:
 
 ```bash
-strings model.int8.onnx | grep -o 'id2speaker.*' | head -1
+strings model.onnx | grep -o 'id2speaker.*' | head -1
 ```
 
-Two bundles worth knowing about: `kokoro-int8-en-v0_19` (103 MB) is the
+**Why fp32 and not the int8 build of the same model (132 MB):** measured on
+an M4 Max, int8 synthesizes at ~0.5x real time against fp32's ~0.13x, and
+sounds grainier side by side. ONNX Runtime's quantized kernels are slower
+than fp32 on Apple Silicon, so the smaller download costs seconds before
+every first word. The CoreML execution provider made no difference to
+either.
+
+Two more bundles worth knowing about: `kokoro-int8-en-v0_19` (103 MB) is the
 int8 build of the original English-only model, 11 voices.
 `kokoro-int8-multi-lang-v1_1` is newer but is the **-zh** release — 103
 voices of which only three are English, so it is a regression here despite

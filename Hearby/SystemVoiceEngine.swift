@@ -4,10 +4,20 @@ import AVFoundation
 /// Fallback engine using Apple's built-in voices.
 /// Used automatically when the Kokoro sidecar isn't installed yet,
 /// so the app works out of the box.
-final class SystemVoiceEngine: SpeechEngine {
+final class SystemVoiceEngine: NSObject, SpeechEngine, AVSpeechSynthesizerDelegate {
     let name = "System (Apple voices)"
 
     private let synthesizer = AVSpeechSynthesizer()
+    private var finished: CheckedContinuation<Void, Never>?
+
+    /// Called on the main actor with the UTF-16 offset of each word as it is
+    /// about to be spoken, so the follow-along panel can keep up.
+    var onWillSpeak: (@MainActor (Int) -> Void)?
+
+    override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
 
     /// Best English voice actually installed on this Mac. Apple ships several
     /// quality tiers; `.premium` and `.enhanced` are downloads the user may or
@@ -53,7 +63,41 @@ final class SystemVoiceEngine: SpeechEngine {
         synthesizer.speak(utterance)
     }
 
+    /// Speaks and returns when the utterance finishes or is stopped, so the
+    /// speaking indicator stays up for as long as there is audio.
+    @MainActor
+    func speakAndWait(text: String, voice: String, speed: Double) async {
+        await withCheckedContinuation { continuation in
+            finished?.resume()
+            finished = continuation
+            speakDirectly(text: text, voice: voice, speed: speed)
+        }
+    }
+
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        resumeWaiter()
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        resumeWaiter()
+    }
+
+    func speechSynthesizer(
+        _ synthesizer: AVSpeechSynthesizer, willSpeakRangeOfSpeechString characterRange: NSRange,
+        utterance: AVSpeechUtterance
+    ) {
+        let location = characterRange.location
+        Task { @MainActor [onWillSpeak] in onWillSpeak?(location) }
+    }
+
+    private func resumeWaiter() {
+        DispatchQueue.main.async { [self] in
+            finished?.resume()
+            finished = nil
+        }
     }
 }

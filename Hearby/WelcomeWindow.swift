@@ -36,7 +36,7 @@ enum WelcomeWindow {
             contentRect: NSRect(x: 0, y: 0, width: 460, height: 560),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered, defer: false)
-        window.title = "Welcome to SpeakSelection"
+        window.title = "Welcome to Hearby"
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.center()
@@ -74,7 +74,7 @@ struct WelcomeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("SpeakSelection")
+                Text("Hearby")
                     .font(.largeTitle.weight(.semibold))
                 Text("Select text anywhere, and hear it read aloud.")
                     .foregroundStyle(.secondary)
@@ -85,7 +85,7 @@ struct WelcomeView: View {
             step(
                 number: 1,
                 title: "Look for the speaker in your menu bar",
-                detail: "SpeakSelection has no Dock icon or window — it lives up "
+                detail: "Hearby has no Dock icon or window — it lives up "
                     + "there. Click it any time for voice, speed and playback controls."
             )
 
@@ -145,7 +145,7 @@ struct WelcomeView: View {
                 Button("Open Settings") { permissions.openSettings() }
                     .buttonStyle(.link)
             }
-            Text("In System Settings, switch on SpeakSelection under "
+            Text("In System Settings, switch on Hearby under "
                 + "Privacy & Security → Accessibility.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

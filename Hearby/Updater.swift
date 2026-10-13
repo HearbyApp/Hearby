@@ -35,7 +35,7 @@ final class Updater: ObservableObject {
 
         guard isConfigured else {
             controller = nil
-            NSLog("SpeakSelection: auto-update disabled — SUFeedURL is still the placeholder.")
+            NSLog("Hearby: auto-update disabled — SUFeedURL is still the placeholder.")
             return
         }
 
@@ -50,6 +50,15 @@ final class Updater: ObservableObject {
 
     func checkForUpdates() {
         controller?.updater.checkForUpdates()
+    }
+
+    /// The repository the feed is served from, which is also where the GPL
+    /// source offer points. Nil while the feed is still the placeholder.
+    static var sourceURL: URL? {
+        let feed = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String ?? ""
+        guard !feed.contains(placeholderOwner), let releases = feed.range(of: "/releases/")
+        else { return nil }
+        return URL(string: String(feed[..<releases.lowerBound]))
     }
 
     /// Version string for the menu bar footer.

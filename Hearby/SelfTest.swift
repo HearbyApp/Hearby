@@ -26,7 +26,7 @@ enum SelfTest {
             }
         }
 
-        print("SpeakSelection self-test")
+        print("Hearby self-test")
         print("  bundle: \(ModelDownloader.bundleName)")
 
         let fm = FileManager.default
@@ -35,7 +35,7 @@ enum SelfTest {
         // 1. Every file the engine config references must exist. Missing ones
         //    make sherpa-onnx fail deep inside C++ with no useful message.
         for component in [
-            "model.int8.onnx", "voices.bin", "tokens.txt",
+            ModelDownloader.modelFile.lastPathComponent, "voices.bin", "tokens.txt",
             "espeak-ng-data", "dict", "lexicon-us-en.txt", "lexicon-zh.txt",
         ] {
             check("present: \(component)") {

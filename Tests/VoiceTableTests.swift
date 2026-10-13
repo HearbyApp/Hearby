@@ -1,6 +1,6 @@
 import XCTest
 
-@testable import SpeakSelection
+@testable import Hearby
 
 /// The speaker table is transcribed by hand from the model's `id2speaker`
 /// metadata. A typo there does not crash or throw — it silently speaks in
@@ -20,7 +20,7 @@ final class VoiceTableTests: XCTestCase {
         XCTAssertEqual(Set(names).count, names.count)
     }
 
-    /// kokoro-int8-multi-lang-v1_0 reports n_speakers=54 with ids 0...53.
+    /// kokoro-multi-lang-v1_0 reports n_speakers=54 with ids 0...53.
     func testSpeakerIdsCoverTheModelRangeExactly() {
         let sids = Set(NativeKokoroEngine.voiceTable.map(\.sid))
         XCTAssertEqual(sids, Set(0...53), "Speaker ids must be exactly 0...53 for this bundle.")

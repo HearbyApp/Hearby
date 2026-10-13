@@ -5,12 +5,14 @@ struct MenuBarView: View {
     @ObservedObject var downloader = ModelDownloader.shared
     @ObservedObject var permissions = Permissions.shared
     @ObservedObject var updater = Updater.shared
+    @AppStorage(SpeakingHUD.enabledKey) private var showHUD = true
+    @AppStorage(SpeakingHUD.captionsKey) private var showCaptions = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Image(systemName: speech.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2")
-                Text("SpeakSelection").font(.headline)
+                Image(systemName: speech.menuBarSymbol)
+                Text("Hearby").font(.headline)
                 Spacer()
                 Text(speech.activeEngineName)
                     .font(.caption)
@@ -116,6 +118,15 @@ struct MenuBarView: View {
             Toggle("Open at login", isOn: $permissions.launchAtLogin)
                 .toggleStyle(.checkbox)
                 .font(.callout)
+            Toggle("Show on-screen indicator", isOn: $showHUD)
+                .toggleStyle(.checkbox)
+                .font(.callout)
+            // The text is shown inside the indicator, so it has nowhere to
+            // appear when the indicator itself is off.
+            Toggle("Show text while speaking", isOn: $showCaptions)
+                .toggleStyle(.checkbox)
+                .font(.callout)
+                .disabled(!showHUD)
 
             Text("Select text in any app, then press ⌃⌥S (speak) / ⌃⌥X (stop). Native apps also get right-click → Services → “Speak Selection”.")
                 .font(.caption2)
@@ -130,6 +141,19 @@ struct MenuBarView: View {
                 }
                 .disabled(!updater.canCheck)
             }
+
+            // GPLv3 asks an interactive program to show its copyright, its
+            // lack of warranty and where to read the license.
+            HStack(spacing: 6) {
+                Text("© 2026 Justin Brundage. Open source (GPL v3), no warranty.")
+                Button("License") { Self.openLicense() }
+                if let source = Updater.sourceURL {
+                    Button("Source") { NSWorkspace.shared.open(source) }
+                }
+            }
+            .buttonStyle(.link)
+            .font(.caption2)
+            .foregroundStyle(.secondary)
 
             HStack {
                 Button("Help") { WelcomeWindow.show() }
@@ -151,5 +175,14 @@ struct MenuBarView: View {
             permissions.beginWatching()
         }
         .onDisappear { permissions.endWatching() }
+    }
+
+    /// LICENSE has no file extension, so Launch Services has no default app
+    /// for it; name TextEdit outright.
+    private static func openLicense() {
+        guard let license = Bundle.main.url(forResource: "LICENSE", withExtension: nil) else { return }
+        NSWorkspace.shared.open(
+            [license], withApplicationAt: URL(fileURLWithPath: "/System/Applications/TextEdit.app"),
+            configuration: NSWorkspace.OpenConfiguration())
     }
 }

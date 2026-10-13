@@ -1,6 +1,6 @@
 #!/usr/bin/env swift
 //
-// Renders SpeakSelection's app icon and writes AppIcon.icns.
+// Renders Hearby's app icon and writes AppIcon.icns.
 //
 // The icon is drawn in code rather than kept as a binary asset so it stays
 // diffable and tweakable without a design tool:
@@ -143,7 +143,7 @@ for s in sizes {
     }
 }
 
-let out = root.appendingPathComponent("SpeakSelection/Resources/AppIcon.icns")
+let out = root.appendingPathComponent("Hearby/Resources/AppIcon.icns")
 try FileManager.default.createDirectory(
     at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
 

@@ -2,12 +2,12 @@ import SwiftUI
 import AppKit
 
 @main
-struct SpeakSelectionApp: App {
+struct HearbyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var speech = SpeechController.shared
 
     init() {
-        // `SpeakSelection.app/Contents/MacOS/SpeakSelection --self-test`
+        // `Hearby.app/Contents/MacOS/Hearby --self-test`
         // loads the installed voice bundle, synthesizes one phrase and exits
         // non-zero if anything is wrong. Run by Scripts/release.sh so a
         // model/config mismatch fails the build instead of shipping mute.
@@ -15,7 +15,7 @@ struct SpeakSelectionApp: App {
     }
 
     var body: some Scene {
-        MenuBarExtra("SpeakSelection", systemImage: speech.isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2") {
+        MenuBarExtra("Hearby", systemImage: speech.menuBarSymbol) {
             MenuBarView()
                 .environmentObject(speech)
         }
@@ -39,6 +39,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotKeys.onSpeak = { [weak self] in self?.speakCurrentSelection() }
         hotKeys.onStop = { Task { @MainActor in SpeechController.shared.stop() } }
         hotKeys.install()
+        // Lets the hotkey fall back to a just-made copy when the frontmost
+        // app has no readable selection (mouse-capturing terminal TUIs).
+        Task { @MainActor in ClipboardWatcher.shared.start() }
 
         // Warm up the Kokoro sidecar in the background so the first
         // "Speak Selection" doesn't pay the model-load cost.
@@ -51,6 +54,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // A menu-bar-only app that opens nothing looks like a failed launch.
         WelcomeWindow.showIfFirstRun()
+
+        SpeakingHUD.install()
     }
 
     private func speakCurrentSelection() {

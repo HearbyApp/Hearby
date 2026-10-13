@@ -51,7 +51,7 @@ final class HotKeyManager {
             keyCode, UInt32(controlKey | optionKey), hotKeyID,
             GetEventDispatcherTarget(), 0, &ref)
         if status != noErr {
-            NSLog("SpeakSelection: RegisterEventHotKey(id %d) failed: %d", id, status)
+            NSLog("Hearby: RegisterEventHotKey(id %d) failed: %d", id, status)
         }
         hotKeyRefs.append(ref)
     }
@@ -65,6 +65,55 @@ final class HotKeyManager {
     }
 }
 
+/// Remembers when the clipboard last changed, so the hotkey can tell a copy
+/// made moments ago from one left over from earlier.
+///
+/// NSPasteboard has no change notification; polling `changeCount` is the only
+/// way to timestamp a change.
+@MainActor
+final class ClipboardWatcher {
+    static let shared = ClipboardWatcher()
+
+    private var lastCount = NSPasteboard.general.changeCount
+    private var lastChange: Date?
+    private var timer: Timer?
+    private var paused = false
+
+    func start() {
+        guard timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
+            Task { @MainActor in self.poll() }
+        }
+    }
+
+    private func poll() {
+        guard !paused else { return }
+        let count = NSPasteboard.general.changeCount
+        guard count != lastCount else { return }
+        lastCount = count
+        lastChange = Date()
+    }
+
+    func pause() { paused = true }
+
+    /// Swallows whatever changed while paused.
+    func resume() {
+        lastCount = NSPasteboard.general.changeCount
+        paused = false
+    }
+
+    /// The clipboard's text, if it was copied within the last `seconds`.
+    func recentText(within seconds: TimeInterval) -> String? {
+        poll()
+        guard let lastChange, Date().timeIntervalSince(lastChange) <= seconds else { return nil }
+        let pasteboard = NSPasteboard.general
+        // Password managers flag their copies; never read those aloud.
+        let concealed = NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType")
+        guard pasteboard.types?.contains(concealed) != true else { return nil }
+        return pasteboard.string(forType: .string)
+    }
+}
+
 /// Reads the frontmost app's current text selection.
 ///
 /// Strategy: ask the Accessibility API for the focused element's selected
@@ -74,11 +123,26 @@ final class HotKeyManager {
 ///
 /// Both paths require the app to be trusted in System Settings →
 /// Privacy & Security → Accessibility.
+///
+/// Neither path can see a selection drawn by a terminal TUI that captures the
+/// mouse (Claude Code in fullscreen mode, for one): the terminal itself has
+/// nothing selected, so AX reports no text and ⌘C copies nothing. Those TUIs
+/// copy to the clipboard on mouse release instead, so a clipboard that changed
+/// in the last few seconds stands in for the selection.
 @MainActor
 enum SelectionGrabber {
+    /// Long enough to select and reach for the hotkey, short enough that an
+    /// old copy is not read back as if it were the selection.
+    private static let recentCopyWindow: TimeInterval = 30
+
     static func grabSelectedText() async -> String? {
-        if let text = axSelectedText(), !text.isEmpty { return text }
-        return await copiedSelection()
+        let axText = axSelectedText()
+        if let axText, !axText.isEmpty { return axText }
+        // nil means the app does not expose its selection, so ⌘C is the only
+        // way to find out. An empty string means it does and nothing is
+        // selected: ⌘C would only beep and burn the full poll timeout.
+        if axText == nil, let text = await copiedSelection(), !text.isEmpty { return text }
+        return ClipboardWatcher.shared.recentText(within: recentCopyWindow)
     }
 
     private static func axSelectedText() -> String? {
@@ -100,6 +164,10 @@ enum SelectionGrabber {
         let pasteboard = NSPasteboard.general
         let previous = pasteboard.string(forType: .string)
         let startCount = pasteboard.changeCount
+
+        // Our own copy-and-restore round trip is not the user copying.
+        ClipboardWatcher.shared.pause()
+        defer { ClipboardWatcher.shared.resume() }
 
         await postCmdC()
         // The copy lands asynchronously; poll briefly for the change.

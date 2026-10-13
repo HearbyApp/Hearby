@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The bundle (model.onnx, voices.bin, tokens.txt, espeak-ng-data/, lexicon)
 /// comes from the sherpa-onnx release archives and is extracted into
-/// ~/Library/Application Support/SpeakSelection/.
+/// ~/Library/Application Support/Hearby/.
 @MainActor
 final class ModelDownloader: NSObject, ObservableObject {
     static let shared = ModelDownloader()
@@ -22,10 +22,19 @@ final class ModelDownloader: NSObject, ObservableObject {
 
     @Published var state: State = .notInstalled
 
-    /// Kokoro v1.0, int8-quantized: 54 voices (28 of them English, including
-    /// af_heart) at 132 MB.
+    /// Kokoro v1.0, full precision (fp32): 54 voices (28 of them English,
+    /// including af_heart) at 350 MB.
     ///
-    /// Chosen over the two obvious alternatives:
+    /// Chosen over the int8 build of the same model (132 MB), which was the
+    /// original pick for size. Measured on an M4 Max, int8 is both worse and
+    /// slower: audibly grainy next to fp32 in a blind A/B, and synthesizing at
+    /// ~0.5x real time against fp32's ~0.13x. ONNX Runtime's quantized
+    /// kernels are slower than its fp32 ones on Apple Silicon, so the smaller
+    /// file loses on the one thing a user feels: time to the first word.
+    /// Speaker table, voices.bin, tokens and lexicons are byte-identical
+    /// between the two, so the voice list did not change.
+    ///
+    /// Also chosen over:
     ///   - kokoro-en-v0_19 (the original here) is fp32: 320 MB for 11 English
     ///     voices, none as good as af_heart.
     ///   - kokoro-int8-multi-lang-v1_1 is newer but is the *-zh* release —
@@ -33,28 +42,28 @@ final class ModelDownloader: NSObject, ObservableObject {
     ///     A regression for an English-first product.
     /// Changing this bundle means regenerating `voiceTable` in
     /// NativeKokoroEngine from the model's own `id2speaker` metadata.
-    nonisolated static let bundleName = "kokoro-int8-multi-lang-v1_0"
+    nonisolated static let bundleName = "kokoro-multi-lang-v1_0"
     static let downloadURL = URL(string:
-        "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_0.tar.bz2")!
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2")!
 
-    /// Verified against the published release asset. A corrupted or
+    /// Matches the `digest` GitHub publishes for the release asset. A corrupted or
     /// man-in-the-middled archive gets extracted by /usr/bin/tar otherwise.
     nonisolated static let expectedSHA256 =
-        "4c3052abaa60943a341f193888cf6abd68787dae6ab8ae5c925a706caa247e4e"
-    nonisolated static let expectedBytes: Int64 = 132_303_094
+        "c5f7e2d2caf082bc1d20fb70334a61d99d20b484500aad32e7cf84c128ea3298"
+    nonisolated static let expectedBytes: Int64 = 349_906_910
 
-    /// Bundles shipped by earlier versions, deleted once the current one
-    /// installs — the v0_19 bundle alone is 353 MB of dead weight.
-    nonisolated static let supersededBundles = ["kokoro-en-v0_19"]
+    /// Bundles shipped by earlier versions, deleted whenever the current one
+    /// is installed — the v0_19 bundle alone is 353 MB of dead weight.
+    nonisolated static let supersededBundles = ["kokoro-en-v0_19", "kokoro-int8-multi-lang-v1_0"]
 
     nonisolated static let appSupportDir = FileManager.default
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("SpeakSelection")
+        .appendingPathComponent("Hearby")
 
     nonisolated static var modelDir: URL { appSupportDir.appendingPathComponent(bundleName) }
 
-    /// The int8 bundles name the weights model.int8.onnx, not model.onnx.
-    nonisolated static var modelFile: URL { modelDir.appendingPathComponent("model.int8.onnx") }
+    /// fp32 bundles name the weights model.onnx; int8 ones model.int8.onnx.
+    nonisolated static var modelFile: URL { modelDir.appendingPathComponent("model.onnx") }
 
     var isInstalled: Bool {
         FileManager.default.fileExists(atPath: Self.modelFile.path)
@@ -68,6 +77,10 @@ final class ModelDownloader: NSObject, ObservableObject {
     func installIfNeeded() {
         if isInstalled {
             state = .installed
+            // Not only after a download: a bundle put in place any other way
+            // (a restored backup, a manual copy) would leave the old ones
+            // behind forever.
+            Task.detached(priority: .utility) { Self.removeSupersededBundles() }
             return
         }
         guard downloadTask == nil else { return }
@@ -100,7 +113,7 @@ final class ModelDownloader: NSObject, ObservableObject {
                 try tar.run()
                 tar.waitUntilExit()
                 guard tar.terminationStatus == 0 else {
-                    throw NSError(domain: "SpeakSelection", code: 1, userInfo: [
+                    throw NSError(domain: "Hearby", code: 1, userInfo: [
                         NSLocalizedDescriptionKey: "tar exited with status \(tar.terminationStatus)",
                     ])
                 }
@@ -125,7 +138,7 @@ final class ModelDownloader: NSObject, ObservableObject {
         }
     }
 
-    /// Streams the archive through SHA-256 so a 132 MB file never lands in
+    /// Streams the archive through SHA-256 so a 350 MB file never lands in
     /// memory all at once.
     nonisolated private static func verifyChecksum(of url: URL) throws {
         let handle = try FileHandle(forReadingFrom: url)
@@ -138,7 +151,7 @@ final class ModelDownloader: NSObject, ObservableObject {
         let digest = hasher.finalize().map { String(format: "%02x", $0) }.joined()
 
         guard digest == expectedSHA256 else {
-            throw NSError(domain: "SpeakSelection", code: 2, userInfo: [
+            throw NSError(domain: "Hearby", code: 2, userInfo: [
                 NSLocalizedDescriptionKey:
                     "Downloaded voice pack failed its integrity check. Tap Retry to download it again.",
             ])

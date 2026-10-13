@@ -23,9 +23,9 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>SpeakSelection reads the text you have selected so it can speak it aloud.</string>
+	<string>Hearby reads the text you have selected so it can speak it aloud.</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 Justin Brundage. All rights reserved.</string>
+	<string>Copyright © 2026 Justin Brundage. Open source under the GNU GPL v3 or later.</string>
 	<key>NSServices</key>
 	<array>
 		<dict>
@@ -37,7 +37,7 @@
 			<key>NSMessage</key>
 			<string>speakSelectedText</string>
 			<key>NSPortName</key>
-			<string>SpeakSelection</string>
+			<string>Hearby</string>
 			<key>NSRequiredContext</key>
 			<dict/>
 			<key>NSSendTypes</key>
@@ -54,7 +54,7 @@
 			<key>NSMessage</key>
 			<string>stopSpeaking</string>
 			<key>NSPortName</key>
-			<string>SpeakSelection</string>
+			<string>Hearby</string>
 			<key>NSRequiredContext</key>
 			<dict/>
 			<key>NSSendTypes</key>
@@ -66,7 +66,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://github.com/YOUR-GITHUB-USERNAME/SpeakSelection/releases/latest/download/appcast.xml</string>
+	<string>https://github.com/HearbyApp/Hearby/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>wQlKkb3TcH6tx2mAqYmfWX5DRjH8R4wfR975HAsiRPA=</string>
 	<key>SUScheduledCheckInterval</key>

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build a signed, notarized, drag-to-Applications DMG of SpeakSelection.
+# Build a signed, notarized, drag-to-Applications DMG of Hearby.
 #
 # This script is for YOU (the developer) — end users never run anything;
 # they download the DMG, drag the app to Applications, and open it.
@@ -45,8 +45,8 @@ fi
 NOTARY_PROFILE="${NOTARY_PROFILE:-notary-profile}"
 
 BUILD=build/release
-APP="$BUILD/SpeakSelection.app"
-DMG="$BUILD/SpeakSelection.dmg"
+APP="$BUILD/Hearby.app"
+DMG="$BUILD/Hearby.dmg"
 rm -rf "$BUILD" && mkdir -p "$BUILD"
 
 echo "==> Generating Xcode project"
@@ -82,8 +82,8 @@ echo "==> Running unit tests"
 # status, and a trailing `|| true` resets PIPESTATUS, so a failing suite
 # would sail through unnoticed.
 TESTLOG="$BUILD/tests.log"
-if ! xcodebuild test -project SpeakSelection.xcodeproj \
-  -scheme SpeakSelection -configuration Debug \
+if ! xcodebuild test -project Hearby.xcodeproj \
+  -scheme Hearby -configuration Debug \
   -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath "$BUILD/dd-test" >"$TESTLOG" 2>&1; then
   grep -E "error:|XCTAssert.* failed" "$TESTLOG" | head -20 >&2
@@ -96,16 +96,16 @@ echo "==> Building Release (universal)"
 # -destination 'generic/platform=macOS' is load-bearing: without it xcodebuild
 # builds only the host architecture and ships an arm64-only app that Intel
 # Macs cannot run, regardless of ARCHS/ONLY_ACTIVE_ARCH.
-xcodebuild -project SpeakSelection.xcodeproj \
-  -scheme SpeakSelection -configuration Release \
+xcodebuild -project Hearby.xcodeproj \
+  -scheme Hearby -configuration Release \
   -destination 'generic/platform=macOS' \
   -derivedDataPath "$BUILD/dd" \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO \
   build
-cp -R "$BUILD/dd/Build/Products/Release/SpeakSelection.app" "$APP"
+cp -R "$BUILD/dd/Build/Products/Release/Hearby.app" "$APP"
 
 echo "==> Verifying universal binary"
-archs=$(lipo -archs "$APP/Contents/MacOS/SpeakSelection")
+archs=$(lipo -archs "$APP/Contents/MacOS/Hearby")
 for want in arm64 x86_64; do
   case " $archs " in
     *" $want "*) ;;
@@ -118,12 +118,12 @@ echo "==> Self-test (loads the voice bundle and synthesizes)"
 # Catches a model/config mismatch — wrong filename, missing lexicon, stale
 # speaker table — before it reaches a customer as an app that says nothing.
 # Needs the voice bundle installed on this machine; launch the app once first.
-MODEL_DIR="$HOME/Library/Application Support/SpeakSelection/kokoro-int8-multi-lang-v1_0"
+MODEL_DIR="$HOME/Library/Application Support/Hearby/kokoro-multi-lang-v1_0"
 if [ -d "$MODEL_DIR" ]; then
-  "$APP/Contents/MacOS/SpeakSelection" --self-test
+  "$APP/Contents/MacOS/Hearby" --self-test
 else
   echo "    SKIPPED: voice bundle not installed at $MODEL_DIR"
-  echo "    Launch SpeakSelection once to download it, then re-run for a verified build."
+  echo "    Launch Hearby once to download it, then re-run for a verified build."
 fi
 
 echo "==> Signing with Developer ID (hardened runtime)"
@@ -152,7 +152,7 @@ STAGE="$BUILD/dmg-stage"
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "SpeakSelection" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+hdiutil create -volname "Hearby" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
 
 if [ "$LOCAL" -eq 1 ]; then
   echo ""
@@ -160,8 +160,8 @@ if [ "$LOCAL" -eq 1 ]; then
   echo ""
   echo "  Install it the way a user would:"
   echo "    open \"$DMG\"           # mounts it in Finder"
-  echo "    drag SpeakSelection onto the Applications shortcut"
-  echo "    open /Applications/SpeakSelection.app"
+  echo "    drag Hearby onto the Applications shortcut"
+  echo "    open /Applications/Hearby.app"
   echo ""
   echo "  Not notarized: this runs on THIS Mac only. On any other machine"
   echo "  Gatekeeper will refuse it until you have a Developer ID cert."

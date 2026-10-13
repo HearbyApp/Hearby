@@ -83,7 +83,7 @@ final class Permissions: ObservableObject {
         } catch {
             // Registration fails for an unsigned or quarantined build. Reflect
             // reality rather than leaving the toggle lying to the user.
-            NSLog("SpeakSelection: launch-at-login change failed: %@", error.localizedDescription)
+            NSLog("Hearby: launch-at-login change failed: %@", error.localizedDescription)
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
     }

@@ -12,7 +12,7 @@ import SherpaOnnx
 final class NativeKokoroEngine: SpeechEngine {
     let name = "Kokoro (on-device)"
 
-    /// Voice name -> speaker id for kokoro-int8-multi-lang-v1_0 (54 voices).
+    /// Voice name -> speaker id for kokoro-multi-lang-v1_0 (54 voices).
     ///
     /// Transcribed verbatim from the model's own `id2speaker` metadata rather
     /// than from any published voice list — the ordering in voices.bin is
@@ -20,7 +20,7 @@ final class NativeKokoroEngine: SpeechEngine {
     /// silently yields the wrong person's voice instead of an error. To
     /// regenerate after a bundle change:
     ///
-    ///   strings model.int8.onnx | grep -o 'id2speaker.*' | head -1
+    ///   strings model.onnx | grep -o 'id2speaker.*' | head -1
     ///
     /// The `af_`/`am_` prefixes are American English, `bf_`/`bm_` British.
     struct Voice {
@@ -117,6 +117,20 @@ final class NativeKokoroEngine: SpeechEngine {
             .map { (language: $0, voices: grouped[$0] ?? []) }
     }()
 
+    /// One thread per performance core, capped at 8. Measured on an M4 Max
+    /// (10 P-cores): 4 threads synthesized at 0.21x real time, 8 at 0.13x,
+    /// and 10 was no faster. Efficiency cores only slow the batch down. Intel
+    /// Macs have no perflevel0, so they fall back to half the logical cores
+    /// (hyperthreads add little to matrix math).
+    static let threadCount: Int = {
+        var cores: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        if sysctlbyname("hw.perflevel0.physicalcpu", &cores, &size, nil, 0) != 0 || cores <= 0 {
+            cores = Int32(ProcessInfo.processInfo.activeProcessorCount / 2)
+        }
+        return min(8, max(2, Int(cores)))
+    }()
+
     private var tts: SherpaOnnxOfflineTtsWrapper?
     private let loadLock = NSLock()
 
@@ -152,17 +166,12 @@ final class NativeKokoroEngine: SpeechEngine {
         )
         let modelConfig = sherpaOnnxOfflineTtsModelConfig(
             kokoro: kokoro,
-            numThreads: 2
+            numThreads: Self.threadCount
         )
-        // Text-normalization FSTs: spoken forms for dates, numbers and phone
-        // numbers. Shipped with the bundle; without them "2026" is read digit
-        // by digit.
-        let ruleFsts = ["date-zh.fst", "number-zh.fst", "phone-zh.fst"]
-            .map(path)
-            .filter { FileManager.default.fileExists(atPath: $0) }
-            .joined(separator: ",")
-
-        var config = sherpaOnnxOfflineTtsConfig(model: modelConfig, ruleFsts: ruleFsts)
+        // No rule FSTs: the ones in the bundle (date-zh, number-zh, phone-zh)
+        // are Chinese text normalization, and with them every number is
+        // spoken in Mandarin. NumberSpeller does the English equivalent.
+        var config = sherpaOnnxOfflineTtsConfig(model: modelConfig)
         tts = SherpaOnnxOfflineTtsWrapper(config: &config)
     }
 
@@ -179,7 +188,7 @@ final class NativeKokoroEngine: SpeechEngine {
         // An unknown name means a voice from a superseded bundle is still in
         // AppStorage; fall back rather than speak as an arbitrary speaker.
         let sid = Self.voiceTable.first(where: { $0.name == voice })?.sid ?? Self.defaultSid
-        let audio = tts.generate(text: text, sid: sid, speed: Float(speed))
+        let audio = tts.generate(text: NumberSpeller.spellOut(text), sid: sid, speed: Float(speed))
         guard !audio.samples.isEmpty else {
             throw SpeechEngineError.synthesisFailed("Kokoro produced no audio for this text.")
         }

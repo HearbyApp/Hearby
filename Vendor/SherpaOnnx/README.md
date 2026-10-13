@@ -25,7 +25,7 @@ The upstream package is unusable from Xcode in every published form
 - `Sources/SherpaOnnx/Reexport.swift` — `@_exported import sherpa_onnx`, so
   `import SherpaOnnx` exposes the C API.
 - The Swift convenience wrapper lives in the app target
-  (`SpeakSelection/SherpaOnnx.swift`, copied from upstream tag 1.13.16 with
+  (`Hearby/SherpaOnnx.swift`, copied from upstream tag 1.13.16 with
   its import switched to this shim) so its internal API is visible to
   `NativeKokoroEngine.swift`. This mirrors upstream k2-fsa's recommended
   usage of copying `SherpaOnnx.swift` into your project.
@@ -38,5 +38,5 @@ The upstream package is unusable from Xcode in every published form
    `libtool -static -o libsherpa-onnx.a <sherpa macos slice>/libsherpa-onnx.a <ort macos slice>/libonnxruntime.a`
    (duplicate-member warnings from onnxruntime.a are harmless)
 3. `xcodebuild -create-xcframework -library libsherpa-onnx.a -headers <sherpa macos slice>/Headers -output Frameworks/sherpa-onnx.xcframework`
-4. Refresh `SpeakSelection/SherpaOnnx.swift` from the matching upstream tag,
+4. Refresh `Hearby/SherpaOnnx.swift` from the matching upstream tag,
    keeping the `import SherpaOnnx` line in place of `@_exported import sherpa_onnx`.
