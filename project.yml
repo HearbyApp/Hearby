@@ -25,6 +25,9 @@ targets:
   Hearby:
     type: application
     platform: macOS
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
     sources:
       - path: Hearby
       # GPLv3 requires the license to travel with every copy of the app; the
@@ -49,21 +52,7 @@ targets:
         # Universal: the vendored xcframework carries a macos-arm64_x86_64
         # slice, so Intel support costs nothing but build time.
         ARCHS: "$(ARCHS_STANDARD)"
-        # Signed with a stable identity, NOT ad-hoc. TCC pins an ad-hoc
-        # grant to the binary's cdhash, so Accessibility permission silently
-        # broke on every rebuild. An identity-based signature keeps the grant
-        # valid across rebuilds. For distribution, Scripts/release.sh
-        # re-signs with your Developer ID.
-        # Manual, not Automatic: automatic provisioning on macOS searches for
-        # a "Mac Development" cert and won't match the universal "Apple
-        # Development" one. Naming the identity outright skips that lookup.
-        # No provisioning profile is needed for a locally-run, non-sandboxed app.
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: "-"
-        # Team ID is the cert's OU,
-        # NOT the identifier in the cert's common name.
-        DEVELOPMENT_TEAM: ""
-        PROVISIONING_PROFILE_SPECIFIER: ""
+        # Code signing is not set here: see Config/Signing.xcconfig.
         # Notarization requires the hardened runtime — enabling it now keeps
         # dev and release builds identical.
         ENABLE_HARDENED_RUNTIME: true
@@ -137,6 +126,9 @@ targets:
   HearbyTests:
     type: bundle.unit-test
     platform: macOS
+    configFiles:
+      Debug: Config/Signing.xcconfig
+      Release: Config/Signing.xcconfig
     sources:
       - path: Tests
     dependencies:
@@ -147,11 +139,7 @@ targets:
         # Test bundles need a plist to be signed; let Xcode synthesize one
         # rather than checking in a file nobody will ever read.
         GENERATE_INFOPLIST_FILE: true
-        # Inherits the app's signing identity; no separate profile needed.
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: "-"
-        DEVELOPMENT_TEAM: ""
-        PROVISIONING_PROFILE_SPECIFIER: ""
+        # Signed the same way as the app: see Config/Signing.xcconfig.
 
 schemes:
   Hearby:

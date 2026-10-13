@@ -1,0 +1,28 @@
+// Code signing for the app and its tests.
+//
+// Whose certificate signs a build is a fact about one developer's Mac, not
+// about the project, so it is not checked in. With nothing else configured
+// the build is signed ad hoc ("-"), which is enough to compile and run.
+//
+// For day-to-day development create Config/Signing.local.xcconfig (ignored by
+// git) naming a real identity:
+//
+//   CODE_SIGN_IDENTITY = Apple Development: Your Name (XXXXXXXXXX)
+//   DEVELOPMENT_TEAM = XXXXXXXXXX
+//
+// That is worth doing: macOS pins an ad hoc build's Accessibility grant to
+// the exact binary, so the permission silently breaks on every rebuild. An
+// identity-based signature keeps it valid. `security find-identity -v -p
+// codesigning` lists what this Mac has; the team is the certificate's OU, not
+// the identifier in its common name.
+//
+// Manual, not Automatic: automatic provisioning on macOS searches for a "Mac
+// Development" certificate and will not match the universal "Apple
+// Development" one. No provisioning profile is needed for a locally run,
+// non-sandboxed app. Scripts/release.sh re-signs with a Developer ID.
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+PROVISIONING_PROFILE_SPECIFIER =
+
+#include? "Signing.local.xcconfig"

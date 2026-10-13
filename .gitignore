@@ -17,3 +17,6 @@ Package.resolved
 # Release artifacts
 *.dmg
 *.zip
+
+# Per-developer signing identity (see Config/Signing.xcconfig)
+Config/Signing.local.xcconfig
