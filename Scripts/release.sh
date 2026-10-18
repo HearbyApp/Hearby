@@ -153,6 +153,10 @@ mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
 ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "Hearby" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+# The DMG needs its own signature: the app inside is notarized either way,
+# but Gatekeeper's check of the downloaded file rejects an unsigned image
+# ("no usable signature").
+codesign --force --timestamp --sign "$IDENTITY" "$DMG"
 
 if [ "$LOCAL" -eq 1 ]; then
   echo ""
@@ -183,8 +187,9 @@ spctl --assess --type open --context context:primary-signature --verbose=2 "$DMG
 echo "==> Generating the Sparkle appcast"
 # generate_appcast signs each update with the private EdDSA key from the
 # login Keychain and writes appcast.xml describing everything in the folder.
-# It needs Sparkle's tools; point SPARKLE_BIN at them if they are elsewhere.
-SPARKLE_BIN="${SPARKLE_BIN:-$HOME/.sparkle/bin}"
+# Sparkle's tools come with the Swift package the build just resolved;
+# point SPARKLE_BIN elsewhere to use another copy.
+SPARKLE_BIN="${SPARKLE_BIN:-$BUILD/dd/SourcePackages/artifacts/sparkle/Sparkle/bin}"
 if [ -x "$SPARKLE_BIN/generate_appcast" ]; then
   # generate_appcast reads every archive in the directory, so give it one
   # containing just this release.

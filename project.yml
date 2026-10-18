@@ -4,7 +4,7 @@ name: Hearby
 options:
   bundleIdPrefix: app.hearby
   deploymentTarget:
-    macOS: "13.0"
+    macOS: "13.4"
   createIntermediateGroups: true
 
 # Vendored local package (sherpa-onnx 1.13.2). The upstream remote package

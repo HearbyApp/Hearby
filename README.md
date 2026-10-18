@@ -18,7 +18,7 @@ No terminal, no setup steps. That's the whole flow.
 
 ## Developer setup
 
-Requirements: macOS 13+ (Apple Silicon recommended), Xcode 15+,
+Requirements: macOS 13.4+ (Apple Silicon recommended), Xcode 15+,
 `brew install xcodegen`.
 
 ```bash
