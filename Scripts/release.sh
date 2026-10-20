@@ -30,9 +30,13 @@ cd "$(dirname "$0")/.."
 LOCAL=0
 if [ "${1:-}" = "--local" ]; then
   LOCAL=1
-  # First codesigning identity in the keychain — whatever this Mac has.
-  IDENTITY=$(security find-identity -v -p codesigning \
-    | sed -n 's/.*"\(.*\)".*/\1/p' | head -1)
+  # Prefer the Developer ID that signs releases. A test build signed by any
+  # other team leaves Keychain items and an Accessibility entry the real
+  # app can't use: macOS then prompts for the password on every launch and
+  # shows Hearby as allowed while the shortcut stays dead. Falls back to
+  # whatever this Mac has.
+  IDENTITIES=$(security find-identity -v -p codesigning | sed -n 's/.*"\(.*\)".*/\1/p')
+  IDENTITY=$(echo "$IDENTITIES" | grep -m1 '^Developer ID Application' || echo "$IDENTITIES" | head -1)
   if [ -z "$IDENTITY" ]; then
     echo "FATAL: no codesigning identity found in your keychain." >&2
     exit 1
@@ -148,11 +152,33 @@ sign "$APP"
 codesign --verify --strict --deep --verbose=2 "$APP"
 
 echo "==> Building DMG"
+# A bare window with two icons left people unsure what to do, so the window
+# gets a background saying "Drag Hearby to Applications" with an arrow
+# between the icons. create-dmg (brew install create-dmg) lays the window
+# out by scripting Finder: the first run asks to let this terminal control
+# Finder, and the Mac must be unlocked. Icon positions must match the arrow
+# in Scripts/dmg/background.html.
+command -v create-dmg >/dev/null || { echo "FATAL: brew install create-dmg" >&2; exit 1; }
 STAGE="$BUILD/dmg-stage"
+rm -rf "$STAGE" "$DMG"
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"
-ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "Hearby" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
+BACKGROUND="$BUILD/dmg-background.tiff"
+tiffutil -cathidpicheck "Scripts/dmg/background.png" \
+  "Scripts/dmg/background@2x.png" -out "$BACKGROUND"
+create-dmg \
+  --volname "Hearby" \
+  --background "$BACKGROUND" \
+  --window-pos 200 120 \
+  --window-size 660 428 \
+  --icon-size 128 \
+  --text-size 13 \
+  --icon "Hearby.app" 165 205 \
+  --hide-extension "Hearby.app" \
+  --app-drop-link 495 205 \
+  --no-internet-enable \
+  "$DMG" "$STAGE"
+rm -rf "$STAGE"
 # The DMG needs its own signature: the app inside is notarized either way,
 # but Gatekeeper's check of the downloaded file rejects an unsigned image
 # ("no usable signature").
