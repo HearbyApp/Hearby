@@ -112,8 +112,16 @@ struct MenuBarView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button("Fix This…") { WelcomeWindow.show() }
-                        .controlSize(.small)
+                    Text(Permissions.staleEntryHint)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    // Straight to the switch: this used to open the welcome
+                    // window, one more step away from the actual fix.
+                    Button("Open Accessibility Settings…") {
+                        permissions.showAccessibilityControls()
+                    }
+                    .controlSize(.small)
                 }
                 Divider()
             }
@@ -205,33 +213,50 @@ struct MenuBarView: View {
         case .licensed:
             EmptyView()
         case .trial(let days):
-            HStack {
-                Text(days == 1 ? "Trial: 1 day left" : "Trial: \(days) days left")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Enter Key…") { LicenseWindow.show() }
-                Button("Buy…") { licensing.openBuyPage() }
-            }
-            .buttonStyle(.link)
-            .font(.caption)
+            licenseBox(
+                title: days == 1 ? "Free trial: 1 day left" : "Free trial: \(days) days left",
+                symbol: "clock",
+                detail: "Then $19 once. No subscription, updates included.",
+                tint: .accentColor)
         case .trialEnded:
-            VStack(alignment: .leading, spacing: 6) {
-                Label("Your trial has ended", systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.orange)
-                Text("Buy Hearby to keep listening: $19 once, updates included.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 8) {
-                    Button("Buy Hearby") { licensing.openBuyPage() }
-                    // Same label as during the trial: the license email and
-                    // the website's thank-you page both say "choose Enter Key…".
-                    Button("Enter Key…") { LicenseWindow.show() }
-                }
-                .controlSize(.small)
-            }
+            licenseBox(
+                title: "Your trial has ended",
+                symbol: "exclamationmark.triangle.fill",
+                detail: "Buy Hearby to keep listening: $19 once, updates included.",
+                tint: .orange)
         }
+    }
+
+    /// Boxed and with real buttons: as small grey links, buyers missed both
+    /// the trial countdown and where to enter the key from their email.
+    private func licenseBox(title: String, symbol: String, detail: String, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Text in the primary color on an opaque box: tinted text over the
+            // popover's translucent material vanished against some desktops.
+            Label {
+                Text(title).foregroundStyle(.primary)
+            } icon: {
+                Image(systemName: symbol).foregroundStyle(tint)
+            }
+            .font(.body.weight(.semibold))
+            Text(detail)
+                .font(.callout)
+                .foregroundStyle(.primary.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button("Buy Hearby…") { licensing.openBuyPage() }
+                    .buttonStyle(.borderedProminent)
+                // The license email and the website's thank-you page both say
+                // "choose Enter Key…", so keep this label in step with them.
+                Button("Enter Key…") { LicenseWindow.show() }
+                    .buttonStyle(.bordered)
+            }
+            .controlSize(.small)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .textBackgroundColor)))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tint, lineWidth: 1.5))
     }
 
     /// LICENSE has no file extension, so Launch Services has no default app

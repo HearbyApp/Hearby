@@ -28,6 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotKeys = HotKeyManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Opened from the disk image or Downloads: offer to install first, so
+        // permissions and the welcome window belong to the installed copy.
+        if AppMover.offerMoveIfNeeded() { return }
+
         // Register the object that receives right-click Services invocations.
         NSApp.servicesProvider = serviceProvider
         // Ask the pasteboard server to re-scan Info.plist service definitions
@@ -63,9 +67,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard Permissions.shared.isTrusted else {
                 // The system prompt appears only once per app signature, so on
                 // later attempts it does nothing and the user is left with a
-                // hotkey that seems broken. Show the window that explains it.
-                Permissions.shared.requestAccess()
-                if !Permissions.shared.isTrusted { WelcomeWindow.show() }
+                // hotkey that seems broken. Show the window that explains it,
+                // but not on top of the system prompt the first time.
+                if Permissions.shared.hasPrompted {
+                    WelcomeWindow.show()
+                } else {
+                    Permissions.shared.requestAccess()
+                }
                 SpeechController.shared.statusMessage =
                     "The keyboard shortcut needs Accessibility access."
                 return

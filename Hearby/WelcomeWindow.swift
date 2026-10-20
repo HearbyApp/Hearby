@@ -141,14 +141,15 @@ struct WelcomeView: View {
                 .font(.callout)
         } else {
             HStack(spacing: 8) {
-                Button("Allow Access…") { permissions.requestAccess() }
+                Button("Allow Access…") { permissions.showAccessibilityControls() }
                 Button("Open Settings") { permissions.openSettings() }
                     .buttonStyle(.link)
             }
             Text("In System Settings, switch on Hearby under "
-                + "Privacy & Security → Accessibility.")
+                + "Privacy & Security → Accessibility. " + Permissions.staleEntryHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

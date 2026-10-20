@@ -61,10 +61,35 @@ final class Permissions: ObservableObject {
     /// further calls are silent, which is why `openSettings()` exists as the
     /// reliable fallback.
     func requestAccess() {
+        UserDefaults.standard.set(true, forKey: Self.promptedKey)
         let key = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
         _ = AXIsProcessTrustedWithOptions([key: true] as CFDictionary)
         refresh()
     }
+
+    private static let promptedKey = "accessibility-prompted"
+
+    /// Whether the system dialog has been asked for; after that macOS
+    /// silently ignores further requests.
+    var hasPrompted: Bool { UserDefaults.standard.bool(forKey: Self.promptedKey) }
+
+    /// One route to the switch: the system dialog the first time (it has its
+    /// own Open System Settings button and adds Hearby to the list), and
+    /// Settings directly after that, when the dialog no longer appears.
+    /// Doing both at once opened Settings on top of the unanswered dialog.
+    func showAccessibilityControls() {
+        if hasPrompted {
+            openSettings()
+        } else {
+            requestAccess()
+        }
+    }
+
+    /// An entry left by a differently signed copy (an older install, a test
+    /// build) shows Hearby switched on yet grants nothing, and Settings gives
+    /// no sign of it. Removing and re-adding the entry is the only cure.
+    static let staleEntryHint =
+        "Already switched on? Select Hearby in the list, click −, then switch it on again."
 
     /// Opens System Settings directly on Privacy & Security -> Accessibility.
     func openSettings() {

@@ -14,6 +14,15 @@ protocol SecretStore {
 struct KeychainStore: SecretStore {
     let service = "app.hearby.Hearby"
 
+    /// An item saved by a differently signed copy of Hearby (a development
+    /// build) makes macOS ask for the login password on every read, and each
+    /// "Allow" lasts one read, so the prompts never stop. Hearby needs no
+    /// Keychain UI at all: with interaction off such a read just fails, and
+    /// the UserDefaults copy of the same value is used instead.
+    init() {
+        SecKeychainSetUserInteractionAllowed(false)
+    }
+
     private func query(_ account: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: service,
