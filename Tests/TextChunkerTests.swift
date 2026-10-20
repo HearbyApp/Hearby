@@ -108,6 +108,25 @@ final class TextChunkerTests: XCTestCase {
             "Carriage returns leaked into a chunk and will be spoken or mispronounced.")
     }
 
+    /// sherpa-onnx quits the app when one Kokoro call exceeds 510 phonemes,
+    /// so no piece handed to it may be longer than maxPieceLength, whatever
+    /// the chunk looks like once numbers are spelled out.
+    func testKokoroPiecesNeverExceedTheLimit() {
+        let chunk = NumberSpeller.spellOut(
+            String(repeating: "Order 1234567 cost $98,765.43 on 2026-10-20 and shipped ", count: 8)
+            + String(repeating: "word ", count: 120)
+            + String(repeating: "x", count: 500))
+        let pieces = NativeKokoroEngine.pieces(of: chunk)
+        XCTAssertGreaterThan(chunk.count, 400)
+        XCTAssertFalse(pieces.isEmpty)
+        for piece in pieces {
+            XCTAssertLessThanOrEqual(piece.count, NativeKokoroEngine.maxPieceLength)
+            XCTAssertFalse(piece.isEmpty)
+        }
+        XCTAssertEqual(pieces.joined().filter { !$0.isWhitespace }, chunk.filter { !$0.isWhitespace },
+                       "splitting must not drop or reorder text")
+    }
+
     // MARK: - Follow-along captions
 
     func testGroupedChunksJoinToTheSameChunks() {

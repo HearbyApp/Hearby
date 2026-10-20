@@ -188,11 +188,34 @@ final class NativeKokoroEngine: SpeechEngine {
         // An unknown name means a voice from a superseded bundle is still in
         // AppStorage; fall back rather than speak as an arbitrary speaker.
         let sid = Self.voiceTable.first(where: { $0.name == voice })?.sid ?? Self.defaultSid
-        let audio = tts.generate(text: NumberSpeller.spellOut(text), sid: sid, speed: Float(speed))
-        guard !audio.samples.isEmpty else {
+        var samples: [Float] = []
+        var sampleRate: Int32 = 24_000
+        for piece in Self.pieces(of: NumberSpeller.spellOut(text)) {
+            let audio = tts.generate(text: piece, sid: sid, speed: Float(speed))
+            samples += audio.samples
+            sampleRate = audio.sampleRate
+        }
+        guard !samples.isEmpty else {
             throw SpeechEngineError.synthesisFailed("Kokoro produced no audio for this text.")
         }
-        return WavEncoder.encode(samples: audio.samples, sampleRate: Int(audio.sampleRate))
+        return WavEncoder.encode(samples: samples, sampleRate: Int(sampleRate))
+    }
+
+    /// The longest text handed to sherpa-onnx in one call.
+    ///
+    /// Kokoro takes at most 510 phoneme tokens per run, and sherpa-onnx
+    /// 1.13.2 calls exit(-1) instead of returning an error when a batch comes
+    /// to more ("Bad things happened! 511 vs 510"), which quits Hearby mid
+    /// read. The limit applies after NumberSpeller, so "$1,234" counts at its
+    /// spoken length. English runs about 1.3 tokens per character, and even
+    /// letter-by-letter acronyms stay under 2.8, so 180 keeps every call well
+    /// below the limit.
+    static let maxPieceLength = 180
+
+    /// `text` split at sentence, clause or word breaks into pieces no longer
+    /// than `maxPieceLength`, each synthesized by its own call.
+    static func pieces(of text: String) -> [String] {
+        TextChunker.chunks(from: text, maxLength: maxPieceLength, firstChunkLength: maxPieceLength)
     }
 
     func speakDirectly(text: String, voice: String, speed: Double) {
