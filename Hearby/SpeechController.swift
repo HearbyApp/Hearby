@@ -95,6 +95,15 @@ final class SpeechController: NSObject, ObservableObject {
     func speak(_ text: String) async {
         stop() // a new selection always interrupts the previous one
 
+        // Every way of asking for speech (hotkey, Services, clipboard) comes
+        // through here, so this is the one place the trial is enforced.
+        Licensing.shared.refresh()
+        guard Licensing.shared.allowsSpeaking else {
+            statusMessage = "Your trial has ended."
+            LicenseWindow.show()
+            return
+        }
+
         // Markdown, code fences and terminal glyphs are written for the eye.
         // Clean once here so Kokoro and the system voice hear the same text.
         let text = SpeechTextCleaner.clean(text)

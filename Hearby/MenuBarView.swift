@@ -5,6 +5,7 @@ struct MenuBarView: View {
     @ObservedObject var downloader = ModelDownloader.shared
     @ObservedObject var permissions = Permissions.shared
     @ObservedObject var updater = Updater.shared
+    @ObservedObject var licensing = Licensing.shared
     @AppStorage(SpeakingHUD.enabledKey) private var showHUD = true
     @AppStorage(SpeakingHUD.captionsKey) private var showCaptions = true
 
@@ -25,6 +26,8 @@ struct MenuBarView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            licenseStatus
 
             // First-run voice install progress
             switch downloader.state {
@@ -155,6 +158,22 @@ struct MenuBarView: View {
             .font(.caption2)
             .foregroundStyle(.secondary)
 
+            if case .licensed(let license) = licensing.state {
+                Button("Licensed to \(license.email)") { LicenseWindow.show() }
+                    .buttonStyle(.link)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            #if DEBUG
+            Menu("Debug: Trial") {
+                Button("Skip 1 Day") { licensing.debugSkipDays(1) }
+                Button("Skip 7 Days (End Trial)") { licensing.debugSkipDays(7) }
+                Button("Restart Trial") { licensing.debugRestartTrial() }
+            }
+            .controlSize(.small)
+            #endif
+
             HStack {
                 Button("Help") { WelcomeWindow.show() }
                 Spacer()
@@ -171,10 +190,48 @@ struct MenuBarView: View {
         // Catches a grant made in System Settings while the popover is open,
         // so the warning clears itself instead of looking stuck.
         .onAppear {
+            licensing.refresh()
             permissions.refresh()
             permissions.beginWatching()
         }
         .onDisappear { permissions.endWatching() }
+    }
+
+    /// Nothing while licensed (the footer says who it's licensed to); during
+    /// the trial, how long is left; after it, why ⌃⌥S has stopped reading.
+    @ViewBuilder
+    private var licenseStatus: some View {
+        switch licensing.state {
+        case .licensed:
+            EmptyView()
+        case .trial(let days):
+            HStack {
+                Text(days == 1 ? "Trial: 1 day left" : "Trial: \(days) days left")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Enter Key…") { LicenseWindow.show() }
+                Button("Buy…") { licensing.openBuyPage() }
+            }
+            .buttonStyle(.link)
+            .font(.caption)
+        case .trialEnded:
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Your trial has ended", systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.orange)
+                Text("Buy Hearby to keep listening: $19 once, updates included.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Button("Buy Hearby") { licensing.openBuyPage() }
+                    // Same label as during the trial: the license email and
+                    // the website's thank-you page both say "choose Enter Key…".
+                    Button("Enter Key…") { LicenseWindow.show() }
+                }
+                .controlSize(.small)
+            }
+        }
     }
 
     /// LICENSE has no file extension, so Launch Services has no default app
