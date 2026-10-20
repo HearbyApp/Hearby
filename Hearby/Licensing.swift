@@ -12,7 +12,15 @@ protocol SecretStore {
 }
 
 struct KeychainStore: SecretStore {
+    /// Development builds, including the copy every test run launches, are
+    /// signed by another team. Items they saved under the release name made
+    /// released versions before 0.4.1 prompt for the password without end,
+    /// so they keep their own.
+    #if DEBUG
+    let service = "app.hearby.Hearby.debug"
+    #else
     let service = "app.hearby.Hearby"
+    #endif
 
     /// An item saved by a differently signed copy of Hearby (a development
     /// build) makes macOS ask for the login password on every read, and each
