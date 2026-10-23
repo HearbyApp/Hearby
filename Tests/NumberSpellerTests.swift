@@ -53,6 +53,13 @@ final class NumberSpellerTests: XCTestCase {
         XCTAssertEqual(spell("38%"), "thirty eight percent")
     }
 
+    func testLargeAmountsAreReadAsNumbers() {
+        XCTAssertEqual(spell("$1,000,000,000"), "one billion dollars")
+        XCTAssertEqual(spell("$1000000000"), "one billion dollars")
+        XCTAssertEqual(spell("$2,500,000,000.50"), "two billion five hundred million dollars and fifty cents")
+        XCTAssertEqual(spell("12,000,000,000 users"), "twelve billion users")
+    }
+
     func testTimes() {
         XCTAssertEqual(spell("at 3:30"), "at three thirty")
         XCTAssertEqual(spell("at 9:05"), "at nine oh five")

@@ -46,8 +46,8 @@ targets:
     settings:
       base:
         PRODUCT_NAME: Hearby
-        MARKETING_VERSION: "0.4.1"
-        CURRENT_PROJECT_VERSION: "5"
+        MARKETING_VERSION: "0.4.2"
+        CURRENT_PROJECT_VERSION: "6"
         SWIFT_VERSION: "5.9"
         # Universal: the vendored xcframework carries a macos-arm64_x86_64
         # slice, so Intel support costs nothing but build time.

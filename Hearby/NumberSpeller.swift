@@ -64,6 +64,8 @@ enum NumberSpeller {
         // The scale word is only captured to move "dollars" after it:
         // "$5 million" is "five million dollars". Without a `$` it is put back.
         let scaleSuffix = scale.isEmpty ? "" : " \(scale)"
+        // Commas or a `$` mark an amount, however long: "$1,000,000,000".
+        let wholeWords = { (digits: String) in Self.wholeWords(digits, isAmount: grouped || dollars) }
 
         if dollars {
             if fraction.count == 2, scale.isEmpty, let cents = Int(fraction) {
@@ -86,10 +88,13 @@ enum NumberSpeller {
         return percent ? words + " percent" : words
     }
 
-    /// Leading zeros and anything past nine digits are identifiers, not
-    /// quantities: zip codes, phone numbers, order ids. Read digit by digit.
-    private static func wholeWords(_ digits: String) -> String {
-        let isIdentifier = digits.count > 9 || (digits.count > 1 && digits.hasPrefix("0"))
+    /// Otherwise, leading zeros and anything past nine digits are identifiers,
+    /// not quantities: zip codes, phone numbers, order ids. Read digit by
+    /// digit. Amounts past fifteen digits (quadrillions) are too.
+    private static func wholeWords(_ digits: String, isAmount: Bool) -> String {
+        let isIdentifier = isAmount
+            ? digits.count > 15
+            : digits.count > 9 || (digits.count > 1 && digits.hasPrefix("0"))
         guard !isIdentifier, let value = Int(digits) else { return digitByDigit(digits) }
         return cardinal(value)
     }
